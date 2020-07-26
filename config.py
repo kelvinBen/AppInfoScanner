@@ -22,18 +22,16 @@ filter_strs =[
     # r'/[a-z0-9A-Z]+/.*'
 ]
 
-# 过滤无用的内容
+# 过滤无用的内容,
 filter_no = [
     u'127.0.0.1',
     u'0.0.0.0',
     u'localhost',
-    u'http://schemas.android.com/apk/res/android',
-    u"https://",
-    u"http://",
     r"^http://www.w3.org"
     r"L.*/",
     r"/.*;",
-    r"/.*<"
+    r"/.*<",
+    r'^http://schemas.android.com',
 ]
 
 # 此处配置壳信息
@@ -50,7 +48,8 @@ shell_list =[
     'cn.securitystack.stee.AppStub',
     'com.linchaolong.apktoolplus.jiagu.ProxyApplication',
     'com.coral.util.StubApplication',
-    'com.mogosec.AppMgr'
+    'com.mogosec.AppMgr',
+    'io.flutter.app.FlutterApplication'
 ]
 
 # 此处配置需要扫描的web文件后缀

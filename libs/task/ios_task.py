@@ -13,6 +13,7 @@ from libs.core.parses import ParsesThreads
 
 class iOSTask(object):
     thread_list =[]
+    value_list = []
     result_dict = {}
 
     def __init__(self,input, rules, net_sniffer,no_resource,all,threads):
@@ -86,6 +87,9 @@ class iOSTask(object):
             for key,value in self.result_dict.items():
                 f.write(key+"\r")
                 for result in value:
+                    if result in self.value_list:
+                        continue
+                    self.value_list.append(result)
                     print(result)
                     f.write("\t"+result+"\r")
         print("For more information about the search, see: %s" %(cores.result_path))
