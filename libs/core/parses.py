@@ -68,10 +68,9 @@ class ParsesThreads(threading.Thread):
         for filter_str in config.filter_strs:
             filter_str_pat = re.compile(filter_str) 
             filter_resl = filter_str_pat.findall(result)
-            # print(filter_resl)
             # 过滤掉未搜索到的内容
             if len(filter_resl)!=0:
-                # 提取第一个字符
+                # 提取第一个结果
                 resl_str = filter_resl[0]
                 # 过滤
                 if self.__filter__(resl_str) == 0:
@@ -83,18 +82,27 @@ class ParsesThreads(threading.Thread):
             continue
 
     def __filter__(self,resl_str):
+        return_flag = 1 
         resl_str = resl_str.replace("\r","").replace("\n","").replace(" ","")
         if len(resl_str) == 0:
             return 0
 
+        # 单独处理https或者http开头的字符串
+        http_list =["https","https://","https:","http","http://","https:",]
+        for filte in http_list:
+            if filte == resl_str:
+                return 0
+
         for filte in config.filter_no:
             resl_str = resl_str.replace(filte,"")
             if len(resl_str) == 0:
-                return 0
+                return_flag = 0 
+                continue
             
             if re.match(filte,resl_str):
-                return 0
-        return 1  
+                return_flag = 0 
+                continue
+        return return_flag  
 
     def run(self):
         threadLock = threading.Lock()

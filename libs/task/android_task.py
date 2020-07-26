@@ -15,6 +15,7 @@ class AndroidTask(object):
     comp_list =[]
     thread_list =[]
     result_dict = {}
+    value_list = []
 
     def __init__(self, input, rules, net_sniffer,no_resource,package,all,threads):
         self.net_sniffer = net_sniffer
@@ -87,7 +88,8 @@ class AndroidTask(object):
 
         for dir in scanner_dir_list:
             scanner_dir =  os.path.join(output,dir)
-            self.__get_scanner_file__(scanner_dir,scanner_file_suffix)
+            if os.path.exists(scanner_dir):
+                self.__get_scanner_file__(scanner_dir,scanner_file_suffix)
 
     def __get_scanner_file__(self,scanner_dir,file_suffix):
         dir_or_files = os.listdir(scanner_dir)
@@ -137,6 +139,9 @@ class AndroidTask(object):
             for key,value in self.result_dict.items():
                 f.write(key+"\r")
                 for result in value:
+                    if result in self.value_list:
+                        continue
+                    self.value_list.append(result)
                     print(result)
                     f.write("\t"+result+"\r")
         print("For more information about the search, see: %s" %(cores.result_path))
@@ -159,14 +164,11 @@ class AndroidTask(object):
 
             am_package=  re.compile(r'<manifest.*package=\"(.*?)\".*')
             apackage = am_package.findall(am_str)
-            if len(apackage >=1):
+            if len(apackage) >=1:
                 self.packagename = apackage
 
             am_name = re.compile(r'<application.*android:name=\"(.*?)\".*>') 
             aname = am_name.findall(am_str)
-            if aname[0] in config.shell_list:
-                self.shell_falg = True
-                
-
-        
-
+            if aname and len(aname)>=1:
+                if aname[0] in config.shell_list:
+                    self.shell_falg = True
