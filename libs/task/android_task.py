@@ -38,9 +38,10 @@ class AndroidTask(object):
         
         # 根据不同的文件后缀进行文件解析
         if os.path.isfile(self.path):
-            if self.path.split(".")[1] == "apk":
+            suffix_name =  self.path.split(".")[-1]
+            if suffix_name == "apk":
                 self.__decode_apk__(self.path)
-            elif self.path.split(".")[1] == "dex":
+            elif suffix_name == "dex":
                 self.__decode_dex__(self.path)
             else:
                 # 抛出异常
@@ -62,11 +63,13 @@ class AndroidTask(object):
         if self.no_resource:
             self.__decode_dex__(path)
         else:
-            cmd_str = ("java -jar %s d -f %s -o %s") % (cores.apktool_path,path,cores.output_path)
+            cmd_str = ("java -jar %s d -f %s -o %s --only-main-classe") % (cores.apktool_path,path,cores.output_path)
             if os.system(cmd_str) == 0:
                 self.__scanner_file_by_apktool__(cores.output_path)
             else:
-                raise Exception("The Apktool tool was not found.")
+                print("Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+                raise Exception("Decompilation failed.")
+                
 
     # 分解dex
     def __decode_dex__(self,path):
@@ -74,7 +77,8 @@ class AndroidTask(object):
         if os.system(cmd_str) == 0:
             self.__get_scanner_file__(cores.output_path,"smali")
         else:
-            raise Exception("The baksmali tool was not found.")
+            print("Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+            raise Exception("Decompilation failed.")
     
 
     # 初始化检测文件信息
