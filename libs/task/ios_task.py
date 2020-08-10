@@ -30,7 +30,7 @@ class iOSTask(object):
 
     def start(self):
         # ipa 文件
-        if self.path.split(".")[1] == 'ipa':
+        if self.path.split(".")[-1] == 'ipa':
             # 对ipa进行解包
             self.__decode_ipa__(cores.output_path)
 
@@ -56,7 +56,7 @@ class iOSTask(object):
             dir_file_path = os.path.join(scanner_dir,dir_file)
             if os.path.isdir(dir_file_path):
                 if dir_file.endswith(".app"):
-                    self.elf_file_name = dir_file.split(".")[0]
+                    self.elf_file_name = dir_file.replace(".app","")
                 self.__get_scanner_file__(dir_file_path,file_suffix)
             else:
                 if self.elf_file_name == dir_file:
@@ -65,7 +65,7 @@ class iOSTask(object):
                 if self.no_resource:    
                     dir_file_suffix =  dir_file.split(".")
                     if len(dir_file_suffix) > 1:
-                        if dir_file_suffix[1] in file_suffix:
+                        if dir_file_suffix[-1] in file_suffix:
                             self.file_queue.put(dir_file_path)
 
     def __decode_ipa__(self,output_path):
