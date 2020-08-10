@@ -105,7 +105,7 @@ class AndroidTask(object):
                 if "." not in dir_file:
                     continue
                 if len(dir_file.split("."))>1:
-                    if dir_file.split(".")[1] in file_suffix:
+                    if dir_file.split(".")[-1] in file_suffix:
                         self.file_queue.put(dir_file_path)
                         for component in config.filter_components:
                             comp = component.replace(".","/")
@@ -120,10 +120,12 @@ class AndroidTask(object):
             dir_file_path = os.path.join(root_path,dir_file)
             if os.path.isdir(dir_file_path):
                 self.__get_file_type__(dir_file_path)
-            else:
-                if dir_file.split(".")[1] == "apk":
+            else: 
+                suffix_name = dir_file.split(".")[-1]
+                
+                if suffix_name == "apk":
                     self.__decode_apk__(dir_file)
-                elif dir_file.split(".")[1] == "dex":
+                elif suffix_name == "dex":
                     self.__decode_dex__(dir_file)
                 else:
                     continue
