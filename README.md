@@ -25,38 +25,23 @@
 - Python3的运行环境
 
 ### 目录说明
+AppInfoScanner
+    |-- libs  程序的核心代码
+        |-- core
+            |-- parses.py 用于解析文件中的静态信息
+        |-- task
+            |-- android_task.py 用于处理Android相关的文件
+            |-- ios_task.py 用于处理iOS相关的文件
+            |-- web_task.py 用于处理Web相关的文件，比如网页右键源代码、H5相关的静态信息
+    |-- tools 程序需要依赖的工具
+        |-- apktool.jar 用于反编译apk文件
+        |-- baksmali.jar 用于反编译dex文件
+        |-- strings.exe 用于windows 32下获取iPA的字符串信息
+        |-- strings64.exe 用于windows 64的系统获取iPA的字符串信息
+    |-- app.py 主运行程序
+    |-- config.py 用于自定义相关规则
+    |-- readme.md  程序使用说明
 
->AppInfoScanner
-
->    |-- libs  程序的核心代码
-
->        |-- core
-
->            |-- parses.py 用于解析文件中的静态信息
-
->        |-- task
-
->            |-- android_task.py 用于处理Android相关的文件
-
->            |-- ios_task.py 用于处理iOS相关的文件
-
->            |-- web_task.py 用于处理Web相关的文件，比如网页右键源代码、H5相关的静态信息
-
->    |-- tools 程序需要依赖的工具
-
->        |-- apktool.jar 用于反编译apk文件
-
->        |-- baksmali.jar 用于反编译dex文件
-
->        |-- strings.exe 用于windows 32下获取iPA的字符串信息
-
->        |-- strings64.exe 用于windows 64的系统获取iPA的字符串信息
-
->    |-- app.py 主运行程序
-
->    |-- config.py 用于自定义相关规则
-
->    |-- readme.md  程序使用说明
 
 
 ### Android 相关操作说明
