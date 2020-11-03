@@ -38,7 +38,7 @@ class WebTask(object):
             self.__get_scanner_file__(self.path,scanner_file_suffix)
 
         else:
-            if not (self.path.split(".")[1] in scanner_file_suffix): # 内容包含进行下步处理
+            if not (self.path.split(".")[-1] in scanner_file_suffix): # 内容包含进行下步处理
                 err_info = ("Retrieval of this file type is not supported. Select a file or directory with a suffix of %s" % ",".join(scanner_file_suffix))
                 raise Exception(err_info)
             self.file_queue.put(self.path)
@@ -58,7 +58,7 @@ class WebTask(object):
                 self.__get_scanner_file__(dir_file_path,file_suffix)
             else:
                 if len(dir_file.split("."))>1:
-                    if dir_file.split(".")[1] in file_suffix:
+                    if dir_file.split(".")[-1] in file_suffix:
                         self.file_queue.put(dir_file_path)
     
     def __print__(self):

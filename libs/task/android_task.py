@@ -12,149 +12,105 @@ import libs.core as cores
 from libs.core.parses import ParsesThreads
 
 class AndroidTask(object):
-    comp_list =[]
-    thread_list =[]
-    result_dict = {}
-    value_list = []
 
-    def __init__(self, input, rules, net_sniffer,no_resource,package,all,threads):
-        self.net_sniffer = net_sniffer
-        self.path = input
-        if rules:
-            config.filter_strs.append(r'.*'+str(rules)+'.*')
+    def __init__(self,path,no_resource,package):
+        self.path = path
         self.no_resource = no_resource
         self.package = package
-        self.all = all
-        self.threads = threads
-        self.file_queue = Queue()
-        self.shell_falg=False
-        self.packagename=""
-        
 
+        self.file_queue = Queue()
+        self.shell_flag=False
+        self.packagename=""
+        self.comp_list=[]
+        
     def start(self):
         # 检查java环境是否存在
         if os.system("java -version") !=0 :
             raise Exception("Please install the Java environment!")
         
-        # 根据不同的文件后缀进行文件解析
-        if os.path.isfile(self.path):
-            if self.path.split(".")[1] == "apk":
-                self.__decode_apk__(self.path)
-            elif self.path.split(".")[1] == "dex":
-                self.__decode_dex__(self.path)
-            else:
-                # 抛出异常
-                raise Exception("Retrieval of this file type is not supported. Select APK file or DEX file.")
+        input_file_path = self.path
+        
+        if os.path.isdir(input_file_path):
+            self.__decode_dir__(input_file_path)
         else:
-            self.__get_file_type__(self.path)
-        self.__start_threads()
+           if self.__decode_file__(input_file_path) == "error":
+               raise Exception("Retrieval of this file type is not supported. Select APK file or DEX file.")
         
-        for thread in self.thread_list:
-            thread.join()
+        return {"comp_list":self.comp_list,"shell_flag":self.shell_flag,"file_queue":self.file_queue,"packagename":self.packagename}
 
-        self.__print__()
-        
-        # if self.net_sniffer:
-        #     self.__start_net__()
+    def __decode_file__(self,file_path):
+        apktool_path = str(cores.apktool_path)
+        output_path = str(cores.output_path)
+        backsmali_path = str(cores.backsmali_path)
+        suffix_name = file_path.split(".")[-1]
+        if suffix_name == "apk":
+            self.__decode_apk__(file_path,apktool_path,output_path)
+        elif suffix_name == "dex":
+            self.__decode_dex__(file_path,backsmali_path,output_path)
+        else:
+            return "error"
+    
+    def __decode_dir__(self,root_dir):
+        dir_or_files = os.listdir(root_dir)
+        for dir_or_file in dir_or_files:
+            dir_or_file_path = os.path.join(root_dir,dir_or_file) 
+            if os.path.isdir(dir_or_file_path):
+                self.__decode_dir__(dir_or_file_path)
+            else: 
+                if self.__decode_file__(dir_or_file_path) == "error":
+                    continue
 
     # 分解apk
-    def __decode_apk__(self,path):
-        if self.no_resource:
-            self.__decode_dex__(path)
+    def __decode_apk__(self,file_path,apktool_path,output_path):
+        cmd_str = ("java -jar %s d -f %s -o %s --only-main-classe") % (apktool_path,str(file_path),output_path)
+        if os.system(cmd_str) == 0:
+            self.__shell_test__(output_path)
+            self.__scanner_file_by_apktool__(output_path)
         else:
-            cmd_str = ("java -jar %s d -f %s -o %s") % (cores.apktool_path,path,cores.output_path)
-            if os.system(cmd_str) == 0:
-                self.__scanner_file_by_apktool__(cores.output_path)
-            else:
-                raise Exception("The Apktool tool was not found.")
+            print("Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+            raise Exception(file_path + ", Decompilation failed.")
+                
 
     # 分解dex
-    def __decode_dex__(self,path):
-        cmd_str = ("java -jar %s d %s") % (cores.backsmali_path,path)
+    def __decode_dex__(self,file_path,backsmali_path,output_path):
+        cmd_str = ("java -jar %s d %s") % (backsmali_path,str(file_path))
         if os.system(cmd_str) == 0:
-            self.__get_scanner_file__(cores.output_path,"smali")
+            self.__get_scanner_file__(output_path)
         else:
-            raise Exception("The baksmali tool was not found.")
+            print("Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+            raise Exception(file_path + ", Decompilation failed.")
     
 
     # 初始化检测文件信息
-    def __scanner_file_by_apktool__(self,output):
+    def __scanner_file_by_apktool__(self,output_path):
+        if self.no_resource:
+            scanner_dir_lists =  ["smali"]    
+            scanner_file_suffixs = ["smali"]
+        else:
+            scanner_dir_lists =  ["smali","assets"]    
+            scanner_file_suffixs = ["smali","js","xml"]
 
-        # shell检测
-        self.__shell_test__(output)
-
-        scanner_dir_list =  ["smali","assets"]    
-        scanner_file_suffix = ["smali","js","xml"]
-
-        for dir in scanner_dir_list:
-            scanner_dir =  os.path.join(output,dir)
+        for scanner_dir_list in scanner_dir_lists:
+            scanner_dir =  os.path.join(output_path,scanner_dir_list)
             if os.path.exists(scanner_dir):
-                self.__get_scanner_file__(scanner_dir,scanner_file_suffix)
+                self.__get_scanner_file__(scanner_dir,scanner_file_suffixs)
 
-    def __get_scanner_file__(self,scanner_dir,file_suffix):
+    def __get_scanner_file__(self,scanner_dir,scanner_file_suffixs=["smali"]):
         dir_or_files = os.listdir(scanner_dir)
-        for dir_file in dir_or_files:
-            dir_file_path = os.path.join(scanner_dir,dir_file)
+        for dir_or_file in dir_or_files:
+            dir_file_path = os.path.join(scanner_dir,dir_or_file)
+            
             if os.path.isdir(dir_file_path):
-                self.__get_scanner_file__(dir_file_path,file_suffix)
+                self.__get_scanner_file__(dir_file_path,scanner_file_suffixs)
             else:
-                if "." not in dir_file:
+                if ("." not in dir_or_file) or (len(dir_or_file.split(".")) < 1) or (dir_or_file.split(".")[-1] not in scanner_file_suffixs):
                     continue
-                if len(dir_file.split("."))>1:
-                    if dir_file.split(".")[1] in file_suffix:
-                        self.file_queue.put(dir_file_path)
-                        for component in config.filter_components:
-                            comp = component.replace(".","/")
-                            if( comp in dir_file_path):
-                                if(component not in self.comp_list):
-                                    self.comp_list.append(component)
-
-
-    def __get_file_type__(self,root_path):
-        dir_or_files = os.listdir(root_path)
-        for dir_file in dir_or_files:
-            dir_file_path = os.path.join(root_path,dir_file)
-            if os.path.isdir(dir_file_path):
-                self.__get_file_type__(dir_file_path)
-            else:
-                if dir_file.split(".")[1] == "apk":
-                    self.__decode_apk__(dir_file)
-                elif dir_file.split(".")[1] == "dex":
-                    self.__decode_dex__(dir_file)
-                else:
-                    continue
-
-    def __print__(self):
-        if self.packagename: 
-            print("=========  The package name of this APP is: ===============")
-            print(self.packagename)
-
-        if len(self.comp_list) != 0:
-            print("========= Component information is as follows :===============")
-            for json in self.comp_list:
-                print(json)
-
-        print("=========The result set for the static scan is shown below:===============")
-        with open(cores.result_path,"a+") as f:
-            for key,value in self.result_dict.items():
-                f.write(key+"\r")
-                for result in value:
-                    if result in self.value_list:
-                        continue
-                    self.value_list.append(result)
-                    print(result)
-                    f.write("\t"+result+"\r")
-        print("For more information about the search, see: %s" %(cores.result_path))
-
-        if self.shell_falg:
-            print('\033[1;33mWarning: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
-
-    def __start_threads(self):
-        for threadID in range(1,self.threads) : 
-            name = "Thread - " + str(threadID)
-            thread =  ParsesThreads(threadID,name,self.file_queue,self.all,self.result_dict)
-            thread.start()
-            self.thread_list.append(thread)
+                self.file_queue.put(dir_file_path)
+                for component in config.filter_components:
+                    comp = component.replace(".","/")
+                    if(comp in dir_file_path):
+                        if(component not in self.comp_list):
+                            self.comp_list.append(component)
 
     def __shell_test__(self,output):
         am_path = os.path.join(output,"AndroidManifest.xml")
@@ -165,10 +121,10 @@ class AndroidTask(object):
             am_package=  re.compile(r'<manifest.*package=\"(.*?)\".*')
             apackage = am_package.findall(am_str)
             if len(apackage) >=1:
-                self.packagename = apackage
+                self.packagename = apackage[0]
 
             am_name = re.compile(r'<application.*android:name=\"(.*?)\".*>') 
             aname = am_name.findall(am_str)
             if aname and len(aname)>=1:
                 if aname[0] in config.shell_list:
-                    self.shell_falg = True
+                    self.shell_flag = True

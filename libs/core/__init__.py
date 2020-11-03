@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
-
-import platform
 import os
+import time
 import shutil
+import platform
+
 
 # smali 所在路径
 smali_path = ""
@@ -30,49 +31,42 @@ class Bootstrapper(object):
         global os_type
         global output_path
         global script_root_dir
-        global result_path
+        global txt_result_path
+        global xls_result_path
         global strings_path
+
+        create_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
 
         script_root_dir =  os.path.dirname(os.path.abspath(path))
         tools_dir = os.path.join(script_root_dir,"tools")
-
+        
         if platform.system() == "Windows":
             machine2bits = {'AMD64':64, 'x86_64': 64, 'i386': 32, 'x86': 32}
             machine2bits.get(platform.machine())
 
             if platform.machine() == 'i386' or platform.machine() == 'x86':
-                strings_path = os.path.join(script_root_dir,"strings.exe")
+                strings_path = os.path.join(tools_dir,"strings.exe")
             else:
-                strings_path = os.path.join(script_root_dir,"strings64.exe")
+                strings_path = os.path.join(tools_dir,"strings64.exe")
         else:
             strings_path ="strings"
-        #     os_type = "win"
-        #     smali_str = "smali.bat"
-        #     back_smali_str = "backsmali.bat"
-        #     apktool_path_str = "apktool.bat"
-        # elif platform.system() == "Linux":
-        #     os_type = "lin"
-        #     smali_str = "smali"
-        #     back_smali_str = "backsmali"
-        #     apktool_path_str = "apktool"
-        # else:
-        #     os_type = "mac"
-        #     smali_str = "smali"
-        
 
-        # smali_path = os.path.join(tools_dir,str(os_type) + os.sep + smali_str)
         backsmali_path = os.path.join(tools_dir,"baksmali.jar")
         apktool_path = os.path.join(tools_dir, "apktool.jar")
         output_path = os.path.join(script_root_dir,"out")
-        result_path = os.path.join(script_root_dir,"result.txt")
+        txt_result_path = os.path.join(script_root_dir,"result_"+str(create_time)+".txt")
+        xls_result_path = os.path.join(script_root_dir,"result_"+str(create_time)+".xls")
 
     def init(self):
         if os.path.exists(output_path):
             shutil.rmtree(output_path)
         os.makedirs(output_path)
 
-        if os.path.exists(result_path):
-            os.remove(result_path)
+        if os.path.exists(txt_result_path):
+            os.remove(txt_result_path)
+
+        if os.path.exists(xls_result_path):
+            os.remove(xls_result_path)
 
         
             
