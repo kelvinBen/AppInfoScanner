@@ -28,6 +28,8 @@ filter_components = [
 # 2. IPv4的ip地址
 # 3. URI地址
 filter_strs =[
+    r'^http://.*',
+    r'^https://.*',
     r'.*(http://.*)',
     r'.*(https://.*)', 
     r'.*((?:[0-9]{1,3}\.){3}[0-9]{1,3}).*',
