@@ -5,45 +5,63 @@
 
 import os
 import re
+import shutil
 import zipfile
+import binascii
+import platform
+from pathlib import Path
 import libs.core as cores
 from queue import Queue
 from libs.core.parses import ParsesThreads
 
 
 class iOSTask(object):
-    thread_list =[]
-    value_list = []
-    result_dict = {}
-
-    def __init__(self,input, rules, net_sniffer,no_resource,all,threads):
-        self.path = input
-        self.rules = rules
-        self.net_sniffer = net_sniffer
+    elf_file_name = ""
+    def __init__(self,path,no_resource):
+        self.path = path
         self.no_resource = no_resource
-        self.all = all
-        self.threads = threads
-        if rules:
-            config.filter_strs.append(r'.*'+str(rules)+'.*')
+
         self.file_queue = Queue()
-        self.shell_falg=False
+        self.shell_flag=False
 
     def start(self):
-        # ipa 文件
-        if self.path.split(".")[1] == 'ipa':
-            # 对ipa进行解包
+        file_path = self.path
+        if file_path.split(".")[-1] == 'ipa':
             self.__decode_ipa__(cores.output_path)
-
-            #文件提取
             self.__scanner_file_by_ipa__(cores.output_path)
-        
-        self.__start_threads()
-        
-        for thread in self.thread_list:
-            thread.join()
+        elif self.__get_file_header__(file_path): 
+            self.file_queue.put(file_path)
+        else:
+            raise Exception("Retrieval of this file type is not supported. Select IPA file or Mach-o file.")
+        return {"shell_flag":self.shell_flag,"file_queue":self.file_queue,"comp_list":[],"packagename":None}
 
-        self.__print__()
-        
+    def __get_file_header__(self,file_path):
+        print("====================")
+        hex_hand = 0x0
+        with open(file_path,"rb") as macho_file:
+            macho_file.seek(hex_hand,0)
+            magic = binascii.hexlify(macho_file.read(4)).decode().upper()
+            macho_magics =  ["CFFAEDFE","CEFAEDFE","BEBAFECA","CAFEBABE"]
+            if magic in macho_magics:
+                self.__shell_test__(macho_file,hex_hand)
+                macho_file.close()
+                return True
+            macho_file.close()
+            return False
+                
+    
+    def __shell_test__(self,macho_file,hex_hand):
+        while True:
+            magic = binascii.hexlify(macho_file.read(4)).decode().upper()
+            if magic == "2C000000":
+                macho_file.seek(hex_hand,0)
+                encryption_info_command = binascii.hexlify(macho_file.read(24)).decode()
+                cryptid = encryption_info_command[-8:len(encryption_info_command)]
+                print(cryptid)
+                if cryptid == "01000000":
+                    self.shell_flag = True
+                break
+            hex_hand = hex_hand + 4            
 
     def __scanner_file_by_ipa__(self,output):   
         scanner_file_suffix = ["plist","js","xml","html"]
@@ -56,43 +74,62 @@ class iOSTask(object):
             dir_file_path = os.path.join(scanner_dir,dir_file)
             if os.path.isdir(dir_file_path):
                 if dir_file.endswith(".app"):
-                    self.elf_file_name = dir_file.split(".")[0]
+                    self.elf_file_name = dir_file.replace(".app","")
                 self.__get_scanner_file__(dir_file_path,file_suffix)
             else:
                 if self.elf_file_name == dir_file:
+                    self.__get_file_header__(dir_file_path)
+                    print(self.shell_flag)
                     self.file_queue.put(dir_file_path)
                     continue
                 if self.no_resource:    
                     dir_file_suffix =  dir_file.split(".")
                     if len(dir_file_suffix) > 1:
-                        if dir_file_suffix[1] in file_suffix:
+                        if dir_file_suffix[-1] in file_suffix:
+                            self.__get_file_header__(dir_file_path)
                             self.file_queue.put(dir_file_path)
 
     def __decode_ipa__(self,output_path):
-        zip_files = zipfile.ZipFile(self.path)
-        for zip_file in zip_files.filelist:
-            zip_files.extract(zip_file.filename,output_path)
+        with zipfile.ZipFile(self.path,"r") as zip_files:
+            zip_file_names = zip_files.namelist()
+            zip_files.extract(zip_file_names[0],output_path)
+            
+            try:
+                new_zip_file =  zip_file_names[0].encode('cp437').decode('utf-8')
+            except UnicodeEncodeError:
+                new_zip_file =  zip_file_names[0].encode('utf-8').decode('utf-8')
+            
+            old_zip_dir = self.__get_parse_dir__(output_path,zip_file_names[0])
+            new_zip_dir = self.__get_parse_dir__(output_path,new_zip_file)
+            os.rename(old_zip_dir,new_zip_dir)
+            for zip_file in zip_file_names:
+               
+                old_ext_path = zip_files.extract(zip_file,output_path)
+                start = str(old_ext_path).index("Payload")
+                dir_path = old_ext_path[start:len(old_ext_path)]
+                old_ext_path = os.path.join(output_path,dir_path)
+                try:
+                    new_zip_file = zip_file.encode('cp437').decode('utf-8')
+                except UnicodeEncodeError:
+                   new_zip_file = zip_file.encode('utf-8').decode('utf-8')
+                
+                new_ext_path = os.path.join(output_path,new_zip_file)
 
-    def __start_threads(self):
-        for threadID in range(1,self.threads) : 
-            name = "Thread - " + str(threadID)
-            thread =  ParsesThreads(threadID,name,self.file_queue,self.all,self.result_dict)
-            thread.start()
-            self.thread_list.append(thread)
-    
+                if platform.system() == "Windows":
+                    new_ext_path = new_ext_path.replace("/","\\")
 
-    def __print__(self):
-        print("=========The result set for the static scan is shown below:===============")
-        with open(cores.result_path,"a+") as f:
-            for key,value in self.result_dict.items():
-                f.write(key+"\r")
-                for result in value:
-                    if result in self.value_list:
-                        continue
-                    self.value_list.append(result)
-                    print(result)
-                    f.write("\t"+result+"\r")
-        print("For more information about the search, see: %s" %(cores.result_path))
+                if not os.path.exists(new_ext_path):
+                    dir_path = os.path.dirname(new_ext_path)
+                    if not os.path.exists(dir_path):
+                        os.makedirs(dir_path)
+                shutil.move(old_ext_path, new_ext_path)
 
-        if self.shell_falg:
-            print('\033[1;33mWarning: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
+
+    def __get_parse_dir__(self,output_path,file_path):
+        start = file_path.index("Payload/")
+        end = file_path.index(".app")
+        root_dir = file_path[start:end]
+        if platform.system() == "Windows":
+            root_dir = root_dir.replace("/","\\")
+        old_root_dir = os.path.join(output_path,root_dir+".app")
+        return old_root_dir

@@ -3,12 +3,24 @@
 # Github: https://github.com/kelvinBen/AppInfoScanner
 
 
-# 此处用于搜索组件信息，如fastjson、gson等
+# 此处用于搜索组件信息
+# com.alibaba.fastjson -> fastjson
+# com.google.gson -> gson
+# com.fasterxml.jackson -> jackson
+# net.sf.json -> 
+# javax.xml.parsers.DocumentBuilder -> dom方式
+# javax.xml.parsers.SAXParser -> sax方式
+# org.jdom.input.SAXBuilder -> jdom
+# org.dom4j.io.SAXReader -> dom4j
 filter_components = [
     'com.alibaba.fastjson',
     'com.google.gson',
     'com.fasterxml.jackson',
-    'net.sf.json'
+    'net.sf.json',
+    'javax.xml.parsers.DocumentBuilder',
+    'javax.xml.parsers.SAXParser',
+    'org.jdom.input.SAXBuilder',
+    'org.dom4j.io.SAXReader'
 ]
 
 # 此处目前支持过滤
@@ -16,6 +28,8 @@ filter_components = [
 # 2. IPv4的ip地址
 # 3. URI地址
 filter_strs =[
+    r'^http://.*',
+    r'^https://.*',
     r'.*(http://.*)',
     r'.*(https://.*)', 
     r'.*((?:[0-9]{1,3}\.){3}[0-9]{1,3}).*',

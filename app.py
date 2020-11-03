@@ -7,9 +7,7 @@
 import click
 
 from libs.core import Bootstrapper
-from libs.task.android_task import AndroidTask
-from libs.task.ios_task import iOSTask
-from libs.task.web_task import WebTask
+from libs.task.base_task import BaseTask
 
 @click.group(help="Python script for automatically retrieving key information in app.")
 def cli():
@@ -17,60 +15,59 @@ def cli():
 
 # 创建Android任务
 @cli.command(help="Get the key information of Android system.")
-@click.option("-i", "--input", required=True, type=str, help="Input APK file or DEX directory.")
+@click.option("-i", "--inputs", required=True, type=str, help="Input APK file or DEX directory.")
 @click.option("-r", "--rules", required=False, type=str, default="", help="Add regular search rule.")
 @click.option("-s", "--net-sniffer", is_flag=True, default=False, help="Whether to enable network sniffing.")
 @click.option("-n", '--no-resource', is_flag=True, default=False,help="Ignore resource files.")
 @click.option("-p", '--package',required=False,type=str,default="",help="Specifies the retrieval package name.")
-@click.option("-a", '--all',is_flag=True, default=False,help="Output all strings.")
+@click.option("-a", '--all-str',is_flag=True, default=False,help="Output all strings.")
 @click.option("-t", '--threads',required=False, type=int,default=10,help="Set the number of threads to 10 by default")
-def android(input: str, rules: str, net_sniffer: bool,no_resource:bool,package:str,all:bool,threads:int) -> None:
+def android(inputs: str, rules: str, net_sniffer: bool,no_resource:bool,package:str,all_str:bool,threads:int) -> None:
     try:
         # 初始化全局对象
         bootstrapper = Bootstrapper(__file__)
         bootstrapper.init()
 
-        task = AndroidTask(input, rules, net_sniffer,no_resource,package,all,threads)
-        # 让内层代码直接抛出异常，不做rollback。
-        task.start()
+        BaseTask("Android", inputs, rules, net_sniffer, no_resource, package, all_str, threads).start()
     except Exception as e:
         raise e
 
 
 @cli.command(help="Get the key information of iOS system.")
-@click.option("-i", "--input", required=True, type=str, help="Input IPA file or ELF file.")
+@click.option("-i", "--inputs", required=True, type=str, help="Input IPA file or ELF file.")
 @click.option("-r", "--rules", required=False, type=str, default="", help="Add regular search rule.")
 @click.option("-s", "--net-sniffer", is_flag=True, default=False, help="Whether to enable network sniffing.")
 @click.option("-n", '--no-resource', is_flag=True, default=False,help="Ignore resource files.")
-@click.option("-a", '--all',is_flag=True, default=False,help="Output all strings.")
+@click.option("-a", '--all-str',is_flag=True, default=False,help="Output all strings.")
 @click.option("-t", '--threads',required=False, type=int,default=10,help="Set the number of threads to 10 by default")
-def ios(input: str, rules: str, net_sniffer: bool,no_resource:bool,all:bool,threads:int) -> None:
+def ios(inputs: str, rules: str, net_sniffer: bool,no_resource:bool,all_str:bool,threads:int) -> None:
     try:
         # 初始化全局对象
         bootstrapper = Bootstrapper(__file__)
         bootstrapper.init()
 
-        task = iOSTask(input, rules, net_sniffer,no_resource,all,threads)
-        # 让内层代码直接抛出异常，不做rollback。
-        task.start()
+        BaseTask("iOS", inputs, rules, net_sniffer, no_resource, all_str, threads).start()
+        
     except Exception as e:
         raise e
 
 
 @cli.command(help="Get the key information of Web system.")
-@click.option("-i", "--input", required=True, type=str, help="Input WebSite dir.")
+@click.option("-i", "--inputs", required=True, type=str, help="Input WebSite dir.")
 @click.option("-r", "--rules", required=False, type=str, default="", help="Add regular search rule.")
-@click.option("-a", '--all',is_flag=True, default=False,help="Output all strings.")
+@click.option("-a", '--all-str',is_flag=True, default=False,help="Output all strings.")
 @click.option("-t", '--threads',required=False, type=int,default=10,help="Set the number of threads to 10 by default")
-def web(input: str, rules: str, all:bool,threads:int) -> None:
+def web(inputs: str, rules: str, all_str:bool,threads:int) -> None:
     try:
         # 初始化全局对象
         bootstrapper = Bootstrapper(__file__)
         bootstrapper.init()
 
+        # BaseTask("Web", inputs, rules,all_str, threads).start()
+
         task = WebTask(input, rules,all,threads)
-        # 让内层代码直接抛出异常，不做rollback。
         task.start()
+
     except Exception as e:
         raise e
 
