@@ -36,7 +36,6 @@ class iOSTask(object):
         return {"shell_flag":self.shell_flag,"file_queue":self.file_queue,"comp_list":[],"packagename":None}
 
     def __get_file_header__(self,file_path):
-        print("====================")
         hex_hand = 0x0
         with open(file_path,"rb") as macho_file:
             macho_file.seek(hex_hand,0)

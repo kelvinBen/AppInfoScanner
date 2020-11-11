@@ -63,10 +63,10 @@ def web(inputs: str, rules: str, all_str:bool,threads:int) -> None:
         bootstrapper = Bootstrapper(__file__)
         bootstrapper.init()
 
-        # BaseTask("Web", inputs, rules,all_str, threads).start()
+        BaseTask("Web", inputs, rules,all_str, threads).start()
 
-        task = WebTask(input, rules,all,threads)
-        task.start()
+        # task = WebTask(input, rules,all,threads)
+        # task.start()
 
     except Exception as e:
         raise e

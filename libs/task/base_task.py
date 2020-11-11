@@ -76,7 +76,7 @@ class BaseTask(object):
             task_info = iOSTask(self.path,self.no_resource).start()
         # 调用Web 相关处理逻辑
         else:
-            task_info = WebTask.start()
+            task_info = WebTask(self.path).start()
         return task_info
 
     def __threads_control__(self,file_queue):
