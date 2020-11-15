@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
-
-# 接收传入的参数信息，根据参数进行平台分发
 import os
 import re
-import xlwt
 import config
 import threading
 from queue import Queue
@@ -14,12 +11,13 @@ from libs.core.parses import ParsesThreads
 from libs.task.android_task import AndroidTask
 from libs.task.ios_task import iOSTask
 from libs.task.web_task import WebTask
+from libs.task.net_task import NetTask
 
 class BaseTask(object):
     thread_list =[]
     result_dict = {}
-    value_list = []
-
+    app_history_list=[]
+    
     # 统一初始化入口
     def __init__(self, types="Android", inputs="", rules="", net_sniffer=False, no_resource=False, package="", all_str=False, threads=10):
         self.types = types
@@ -32,20 +30,25 @@ class BaseTask(object):
         self.all = all_str
         self.threads = threads
         self.file_queue = Queue()
+        
     
     # 统一调度平台
     def start(self):
-        workbook = xlwt.Workbook(encoding = 'utf-8')
+    
+        print("[*] AI决策系统正在分析规则中...")
 
-        # 创建excel头
-        worksheet = self.__creating_excel_header__(workbook)
-        
+        # 获取历史记录
+        self.__history_handle__()
+
+        print("[*] 本次的过滤规则为：" , config.filter_no)
+
         # 任务控制中心
         task_info = self.__tast_control__()
         file_queue = task_info["file_queue"]
         shell_flag = task_info["shell_flag"]
         comp_list = task_info["comp_list"]
         packagename = task_info["packagename"]
+        file_identifier = task_info["file_identifier"]
         
         if shell_flag:
             print('\033[3;31m Error: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
@@ -57,14 +60,10 @@ class BaseTask(object):
         # 等待线程结束
         for thread in self.thread_list:
             thread.join()
-
+    
         # 结果输出中心
-        self.__print_control__(packagename,comp_list,workbook,worksheet)
+        self.__print_control__(packagename,comp_list,file_identifier)
 
-    def __creating_excel_header__(self,workbook):
-        worksheet = workbook.add_sheet("扫描信息",cell_overwrite_ok=True)
-        worksheet.write(0,0, label = "扫描结果")
-        return worksheet
 
     def __tast_control__(self):
         task_info = {}
@@ -86,10 +85,12 @@ class BaseTask(object):
             thread.start()
             self.thread_list.append(thread)
 
-    def __print_control__(self,packagename,comp_list,workbook,worksheet):
+    def __print_control__(self,packagename,comp_list,file_identifier):
         txt_result_path = cores.txt_result_path
         xls_result_path = cores.xls_result_path
         
+        # 此处需要hash值或者应用名称, apk文件获取pachage, dex文件获取hash, macho-o获取文件名
+
         if packagename: 
             print("=========  The package name of this APP is: ===============")
             print(packagename)
@@ -98,22 +99,63 @@ class BaseTask(object):
             print("========= Component information is as follows :===============")
             for json in comp_list:
                 print(json)
-
         print("=========The result set for the static scan is shown below:===============")
-        with open(txt_result_path,"a+",encoding='utf-8',errors='ignore') as f:
-            row = 1
-            for key,value in self.result_dict.items():
-                f.write(key+"\r")
-                for result in value:
-                    if result in self.value_list:
-                        continue
-                    self.value_list.append(result)
-                    print(result)
-                    worksheet.write(row,0, label = result)
-                    row = row + 1
-                    f.write("\t"+result+"\r")
-        print("For more information about the search, see TXT file result: %s" %(txt_result_path))
-        print("For more information about the search, see XLS file result: %s" %(xls_result_path))
-        workbook.save(xls_result_path)
-        
 
+        NetTask(self.result_dict,self.app_history_list,file_identifier,self.threads).start()
+        
+        # with open(txt_result_path,"a+",encoding='utf-8',errors='ignore') as f:
+        #     row = 1
+        #     for key,value in self.result_dict.items():
+        #         f.write(key+"\r")
+
+        #         for result in value:
+        #             if result in self.value_list:
+        #                 continue
+        #             if not(file_identifier in self.app_history_list) and ("http://" in result or "https://" in result):
+        #                 domain = result.replace("https://","").replace("http://","")
+        #                 if "/" in domain:
+        #                     domain = domain[:domain.index("/")]
+                        
+        #                 if not(domain in self.domain_list):
+        #                     self.domain_list.append(domain)
+        #                     self.__write_content_in_file__(cores.domain_history_path,domain)
+        #                 if append_file_flag:
+        #                     for identifier in  file_identifier:
+        #                         self.__write_content_in_file__(cores.app_history_path,identifier)
+        #                         append_file_flag = False
+                            
+        #             self.value_list.append(result)
+        #             worksheet.write(row,0, label = result)
+        #             row = row + 1
+        #             f.write("\t"+result+"\r")
+        print("For more information about the search, see TXT file result: %s" %(cores.txt_result_path))
+        print("For more information about the search, see XLS file result: %s" %(cores.xls_result_path))
+    
+    def __history_handle__(self):
+        domain_history_path =  cores.domain_history_path
+        app_history_path = cores.app_history_path
+        if os.path.exists(domain_history_path):
+            domain_counts = {}
+            app_size = 0 
+            with open(app_history_path,"r",encoding='utf-8',errors='ignore') as f:
+                lines = f.readlines()
+                app_size = len(lines)
+                for line in  lines:
+                   self.app_history_list.append(line.replace("\r","").replace("\n",""))
+
+                f.close()
+
+            with open(domain_history_path,"r",encoding='utf-8',errors='ignore') as f:
+                lines = f.readlines()
+                cout = 3
+                if (app_size>3) and (app_size%3==0):
+                    cout = cout + 1
+                for line in lines:
+                    domain = line.replace("\r","").replace("\n","")
+                    domain_count = lines.count(line)
+                    
+                    if domain_count >= cout:
+                        config.filter_no.append(domain)
+                f.close()
+
+    

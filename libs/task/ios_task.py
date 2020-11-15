@@ -1,18 +1,14 @@
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
-
-
 import os
 import re
 import shutil
 import zipfile
 import binascii
 import platform
-from pathlib import Path
 import libs.core as cores
 from queue import Queue
-from libs.core.parses import ParsesThreads
 
 
 class iOSTask(object):
@@ -22,7 +18,8 @@ class iOSTask(object):
         self.no_resource = no_resource
 
         self.file_queue = Queue()
-        self.shell_flag=False
+        self.shell_flag = False
+        self.file_identifier= []
 
     def start(self):
         file_path = self.path
@@ -33,10 +30,12 @@ class iOSTask(object):
             self.file_queue.put(file_path)
         else:
             raise Exception("Retrieval of this file type is not supported. Select IPA file or Mach-o file.")
-        return {"shell_flag":self.shell_flag,"file_queue":self.file_queue,"comp_list":[],"packagename":None}
+        return {"shell_flag":self.shell_flag,"file_queue":self.file_queue,"comp_list":[],"packagename":None,"file_identifier":self.file_identifier}
 
     def __get_file_header__(self,file_path):
         hex_hand = 0x0
+        macho_name =  os.path.split(file_path)[-1]
+        self.file_identifier.append(macho_name)
         with open(file_path,"rb") as macho_file:
             macho_file.seek(hex_hand,0)
             magic = binascii.hexlify(macho_file.read(4)).decode().upper()
@@ -56,7 +55,6 @@ class iOSTask(object):
                 macho_file.seek(hex_hand,0)
                 encryption_info_command = binascii.hexlify(macho_file.read(24)).decode()
                 cryptid = encryption_info_command[-8:len(encryption_info_command)]
-                print(cryptid)
                 if cryptid == "01000000":
                     self.shell_flag = True
                 break
@@ -78,7 +76,6 @@ class iOSTask(object):
             else:
                 if self.elf_file_name == dir_file:
                     self.__get_file_header__(dir_file_path)
-                    print(self.shell_flag)
                     self.file_queue.put(dir_file_path)
                     continue
                 if self.no_resource:    

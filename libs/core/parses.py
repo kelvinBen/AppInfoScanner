@@ -81,15 +81,20 @@ class ParsesThreads(threading.Thread):
 
     def __filter__(self,resl_str):
         return_flag = 1 
+        print(resl_str)
         resl_str = resl_str.replace("\r","").replace("\n","").replace(" ","")
         if len(resl_str) == 0:
             return 0
 
+        # 目前流通的域名中加上协议头最短长度为11位
+        if len(resl_str) <= 10:
+            return 0
+
         # 单独处理https或者http开头的字符串
-        http_list =["https","https://","https:","http","http://","https:",]
-        for filte in http_list:
-            if filte == resl_str:
-                return 0
+        # http_list =["https","https://","https:","http","http://","https:",]
+        # for filte in http_list:
+        #     if filte == resl_str:
+        #         return 0
 
         for filte in config.filter_no:
             resl_str = resl_str.replace(filte,"")

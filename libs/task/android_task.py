@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
-
-
 import os
 import re
 import config
-import threading
+import hashlib
 from queue import Queue
 import libs.core as cores
-from libs.core.parses import ParsesThreads
+
 
 class AndroidTask(object):
 
@@ -22,6 +20,7 @@ class AndroidTask(object):
         self.shell_flag=False
         self.packagename=""
         self.comp_list=[]
+        self.file_identifier=[]
         
     def start(self):
         # 检查java环境是否存在
@@ -36,7 +35,7 @@ class AndroidTask(object):
            if self.__decode_file__(input_file_path) == "error":
                raise Exception("Retrieval of this file type is not supported. Select APK file or DEX file.")
         
-        return {"comp_list":self.comp_list,"shell_flag":self.shell_flag,"file_queue":self.file_queue,"packagename":self.packagename}
+        return {"comp_list":self.comp_list,"shell_flag":self.shell_flag,"file_queue":self.file_queue,"packagename":self.packagename,"file_identifier":self.file_identifier}
 
     def __decode_file__(self,file_path):
         apktool_path = str(cores.apktool_path)
@@ -46,6 +45,9 @@ class AndroidTask(object):
         if suffix_name == "apk":
             self.__decode_apk__(file_path,apktool_path,output_path)
         elif suffix_name == "dex":
+            with open(file_path,'rb') as f:
+                dex_md5 = str(hashlib.md5().update(f.read()).hexdigest()).upper()
+                self.file_identifier.append(dex_md5)
             self.__decode_dex__(file_path,backsmali_path,output_path)
         else:
             return "error"
@@ -83,17 +85,17 @@ class AndroidTask(object):
 
     # 初始化检测文件信息
     def __scanner_file_by_apktool__(self,output_path):
-        if self.no_resource:
-            scanner_dir_lists =  ["smali"]    
-            scanner_file_suffixs = ["smali"]
-        else:
-            scanner_dir_lists =  ["smali","assets"]    
-            scanner_file_suffixs = ["smali","js","xml"]
+        file_names = os.listdir(output_path)
+        for file_name in file_names:
+            file_path =  os.path.join(output_path,file_name)
+            if not os.path.isdir(file_path):
+                continue
 
-        for scanner_dir_list in scanner_dir_lists:
-            scanner_dir =  os.path.join(output_path,scanner_dir_list)
-            if os.path.exists(scanner_dir):
-                self.__get_scanner_file__(scanner_dir,scanner_file_suffixs)
+            if "smali" in file_name or "assets" in file_name:
+                scanner_file_suffixs = ["smali","js","xml"]
+                if self.no_resource:
+                    scanner_file_suffixs =["smali"]
+                self.__get_scanner_file__(file_path,scanner_file_suffixs)
 
     def __get_scanner_file__(self,scanner_dir,scanner_file_suffixs=["smali"]):
         dir_or_files = os.listdir(scanner_dir)
@@ -115,13 +117,14 @@ class AndroidTask(object):
     def __shell_test__(self,output):
         am_path = os.path.join(output,"AndroidManifest.xml")
         
-        with open(am_path,"r") as f:
+        with open(am_path,"r",encoding='utf-8',errors='ignore') as f:
             am_str = f.read()
 
             am_package=  re.compile(r'<manifest.*package=\"(.*?)\".*')
             apackage = am_package.findall(am_str)
             if len(apackage) >=1:
                 self.packagename = apackage[0]
+                self.file_identifier.append(apackage[0])
 
             am_name = re.compile(r'<application.*android:name=\"(.*?)\".*>') 
             aname = am_name.findall(am_str)
