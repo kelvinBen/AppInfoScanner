@@ -1,3 +1,11 @@
+### V1.0.6
+- 新增AI智能分析快速过滤第三方URL地址
+- 新增Domain\Title\CDN\Finger识别功能
+- 优化Excel文件内容输出格式
+- 优化URL和IP筛选规则
+- 优化全局日志输出
+- 修复APK下多DEX文件搜索结果不准确的问题
+
 ### V1.0.5
 - 新增对DOM、SAX、DOM4J、JDOM等XML解析组件的识别
 - 新增反编译失败后提交issues入口

@@ -26,26 +26,38 @@ filter_components = [
 # 此处目前支持过滤
 # 1. https://以及http://开头的
 # 2. IPv4的ip地址
-# 3. URI地址
+# 3. URI地址,URI不能很好的拼接所以此处忽略
 filter_strs =[
-    r'^http://.*',
-    r'^https://.*',
-    r'.*(http://.*)',
-    r'.*(https://.*)', 
-    r'.*((?:[0-9]{1,3}\.){3}[0-9]{1,3}).*',
+    r'https://.*|http://.*',
+    r'.*://([[0-9]{1,3}\.]{3}[0-9]{1,3}).*',
     # r'/[a-z0-9A-Z]+/.*'
 ]
 
-# 过滤无用的内容,
+# 此处忽略常见的域名等信息
 filter_no = [
-    u'127.0.0.1',
-    u'0.0.0.0',
-    u'localhost',
-    r"^http://www.w3.org"
-    r"L.*/",
-    r"/.*;",
-    r"/.*<",
-    r'^http://schemas.android.com',
+    # r'.*127.0.0.1',
+    # r'.*0.0.0.0',
+    # r'.*localhost',
+    # r'.*w3.org',
+    # r'.*apache.org',
+    # r'.*android.com',
+    # r'.*weixin.qq.com',
+    # r'.*jpush.cn',
+    # r'.*umengcloud.com',
+    # r'.*umeng.com',
+    # r'.*baidu.com',
+    # r'.*apple.com',
+    # r'.*alibaba.com',
+    # r'.*qq.com',
+    # r'.*sohu.com',
+    # r'.*openssl.org',
+    # r'.*weibo.com',
+    # r'.*wechat.com',
+    # r'.*.amap.com',
+    # r'.*openxmlformats.org',
+    # r'.*github.com',
+    # r'.*w3school.com.cn',
+    # r'.*google.com'
 ]
 
 # 此处配置壳信息
@@ -79,3 +91,4 @@ web_file_suffix =[
     "aspx",
     "py"
 ]
+

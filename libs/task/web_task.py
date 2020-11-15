@@ -1,16 +1,9 @@
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
-
-
 import os
-import re
 import config
-import threading
 from queue import Queue
-import libs.core as cores
-from libs.core.parses import ParsesThreads
-
 
 class WebTask(object):
     thread_list =[]
@@ -45,23 +38,3 @@ class WebTask(object):
                 if len(dir_file.split("."))>1:
                     if dir_file.split(".")[-1] in file_suffix:
                         self.file_queue.put(dir_file_path)
-    
-    # def __print__(self):
-    #     print("=========The result set for the static scan is shown below:===============")
-    #     with open(cores.result_path,"a+") as f:
-    #         for key,value in self.result_dict.items():
-    #             f.write(key+"\r")
-    #             for result in value:
-    #                 if result in self.value_list:
-    #                     continue
-    #                 self.value_list.append(result)
-    #                 print(result)
-    #                 f.write("\t"+result+"\r")
-    #     print("For more information about the search, see: %s" %(cores.result_path))
-
-    # def __start_threads(self):
-    #     for threadID in range(1,self.threads) : 
-    #         name = "Thread - " + str(threadID)
-    #         thread =  ParsesThreads(threadID,name,self.file_queue,self.all,self.result_dict)
-    #         thread.start()
-    #         self.thread_list.append(thread)
