@@ -1,6 +1,6 @@
 ### V1.0.6
 - 新增AI智能分析快速过滤第三方URL地址
-- 新增Domain\Title\CDN\Finger识别功能
+- 新增Domain\Title\CDN识别功能
 - 优化Excel文件内容输出格式
 - 优化URL和IP筛选规则
 - 优化全局日志输出

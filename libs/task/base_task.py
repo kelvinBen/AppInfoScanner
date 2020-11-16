@@ -19,7 +19,7 @@ class BaseTask(object):
     app_history_list=[]
     
     # 统一初始化入口
-    def __init__(self, types="Android", inputs="", rules="", net_sniffer=False, no_resource=False, package="", all_str=False, threads=10):
+    def __init__(self, types="Android", inputs="", rules="", net_sniffer=True, no_resource=False, package="", all_str=False, threads=10):
         self.types = types
         self.net_sniffer = net_sniffer
         self.path = inputs
@@ -35,12 +35,12 @@ class BaseTask(object):
     # 统一调度平台
     def start(self):
     
-        print("[*] AI决策系统正在分析规则中...")
+        print("[*] AI is analyzing filtering rules......")
 
         # 获取历史记录
         self.__history_handle__()
 
-        print("[*] 本次的过滤规则为：" , config.filter_no)
+        print("[*] The filtering rules obtained by AI are as follows: %s" % (config.filter_no) )
 
         # 任务控制中心
         task_info = self.__tast_control__()
@@ -55,6 +55,7 @@ class BaseTask(object):
             return
 
         # 线程控制中心
+        print("[*] =========  Searching for strings that match the rules ===============")
         self.__threads_control__(file_queue)
 
         # 等待线程结束
@@ -92,44 +93,19 @@ class BaseTask(object):
         # 此处需要hash值或者应用名称, apk文件获取pachage, dex文件获取hash, macho-o获取文件名
 
         if packagename: 
-            print("=========  The package name of this APP is: ===============")
+            print("[*] =========  The package name of this APP is: ===============")
             print(packagename)
 
         if len(comp_list) != 0:
-            print("========= Component information is as follows :===============")
+            print("[*] ========= Component information is as follows :===============")
             for json in comp_list:
                 print(json)
-        print("=========The result set for the static scan is shown below:===============")
-
-        NetTask(self.result_dict,self.app_history_list,file_identifier,self.threads).start()
         
-        # with open(txt_result_path,"a+",encoding='utf-8',errors='ignore') as f:
-        #     row = 1
-        #     for key,value in self.result_dict.items():
-        #         f.write(key+"\r")
-
-        #         for result in value:
-        #             if result in self.value_list:
-        #                 continue
-        #             if not(file_identifier in self.app_history_list) and ("http://" in result or "https://" in result):
-        #                 domain = result.replace("https://","").replace("http://","")
-        #                 if "/" in domain:
-        #                     domain = domain[:domain.index("/")]
-                        
-        #                 if not(domain in self.domain_list):
-        #                     self.domain_list.append(domain)
-        #                     self.__write_content_in_file__(cores.domain_history_path,domain)
-        #                 if append_file_flag:
-        #                     for identifier in  file_identifier:
-        #                         self.__write_content_in_file__(cores.app_history_path,identifier)
-        #                         append_file_flag = False
-                            
-        #             self.value_list.append(result)
-        #             worksheet.write(row,0, label = result)
-        #             row = row + 1
-        #             f.write("\t"+result+"\r")
-        print("For more information about the search, see TXT file result: %s" %(cores.txt_result_path))
-        print("For more information about the search, see XLS file result: %s" %(cores.xls_result_path))
+        if self.net_sniffer:
+            print("[*] ========= Sniffing the URL address of the search ===============")
+            NetTask(self.result_dict,self.app_history_list,file_identifier,self.threads).start()
+            print("[*] For more information about the search, see XLS file result: %s" %(cores.xls_result_path))
+        print("[*] For more information about the search, see TXT file result: %s" %(cores.txt_result_path))
     
     def __history_handle__(self):
         domain_history_path =  cores.domain_history_path

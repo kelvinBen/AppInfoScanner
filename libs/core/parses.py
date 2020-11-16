@@ -26,7 +26,7 @@ class ParsesThreads(threading.Thread):
                 break
             
             file_path = self.file_queue.get(timeout = 5)
-            scan_str = ("Scan file : %s" % file_path)
+            scan_str = ("[+] Scan file : %s" % file_path)
             print(scan_str)
 
             if self.types == "iOS":
@@ -65,7 +65,7 @@ class ParsesThreads(threading.Thread):
         for filter_str in config.filter_strs:
             filter_str_pat = re.compile(filter_str) 
             filter_resl = filter_str_pat.findall(result)
-            # print(result,filter_resl)
+
             # 过滤掉未搜索到的内容
             if len(filter_resl)!=0:
                 # 提取第一个结果
@@ -75,27 +75,18 @@ class ParsesThreads(threading.Thread):
                     continue
 
                 self.threadLock.acquire()
+                print("[+] The string searched for matching rule is: %s" % (resl_str))
                 self.result_list.append(resl_str)
                 self.threadLock.release()
             continue
 
     def __filter__(self,resl_str):
         return_flag = 1 
-        print(resl_str)
         resl_str = resl_str.replace("\r","").replace("\n","").replace(" ","")
+        
         if len(resl_str) == 0:
             return 0
-
-        # 目前流通的域名中加上协议头最短长度为11位
-        if len(resl_str) <= 10:
-            return 0
-
-        # 单独处理https或者http开头的字符串
-        # http_list =["https","https://","https:","http","http://","https:",]
-        # for filte in http_list:
-        #     if filte == resl_str:
-        #         return 0
-
+            
         for filte in config.filter_no:
             resl_str = resl_str.replace(filte,"")
             if len(resl_str) == 0:
