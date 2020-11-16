@@ -37,4 +37,7 @@ class WebTask(object):
             else:
                 if len(dir_file.split("."))>1:
                     if dir_file.split(".")[-1] in file_suffix:
+                        with open(file_path,'rb') as f:
+                            dex_md5 = str(hashlib.md5().update(f.read()).hexdigest()).upper()
+                            self.file_identifier.append(dex_md5)
                         self.file_queue.put(dir_file_path)

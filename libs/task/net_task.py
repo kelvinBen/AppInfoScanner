@@ -26,12 +26,13 @@ class NetTask(object):
         xls_result_path = cores.xls_result_path
         workbook = xlwt.Workbook(encoding = 'utf-8')
         worksheet = self.__creating_excel_header__(workbook)
-        self.__start_threads__(worksheet)
+        
         self.__write_result_to_txt__()
 
+        self.__start_threads__(worksheet)
+    
         for thread in self.thread_list:
             thread.join()
-
 
         workbook.save(xls_result_path)
 
@@ -45,7 +46,7 @@ class NetTask(object):
         worksheet.write(0,5, label = "Server")
         worksheet.write(0,6, label = "Title")
         worksheet.write(0,7, label = "CDN")
-        worksheet.write(0,8, label = "Finger")
+        # worksheet.write(0,8, label = "Finger")
         return worksheet 
         
     def __write_result_to_txt__(self):
@@ -58,29 +59,33 @@ class NetTask(object):
                 for result in value:
                     if result in self.value_list:
                         continue
-                    
-                    # 100个文件标识
-                    for file in self.file_identifier:
-                        if not(file in self.app_history_list) and ("http://" in result or "https://" in result):
 
-                    # print(self.file_identifier,self.app_history_list,not(self.file_identifier[0] in self.app_history_list))
-                    # if not(self.file_identifier in self.app_history_list) and ("http://" in result or "https://" in result):
-                            domain = result.replace("https://","").replace("http://","")
-                            if "/" in domain:
-                                domain = domain[:domain.index("/")]
-                            
-                            self.domain_queue.put({"domain":domain,"url_ip":result})
+                    if (("http://" in result) or ("https://" in result)) and ("." in result):
+                        domain = result.replace("https://","").replace("http://","")
+                        if "/" in domain:
+                            domain = domain[:domain.index("/")]
+                        
+                        if "|" in result:
+                            result = result[:result.index("|")]
+                        # 目前流通的域名中加上协议头最短长度为11位
+                        if len(result) <= 10:
+                            continue
+                        self.domain_queue.put({"domain":domain,"url_ip":result})
 
-                            print(domain,self.domain_list,not(domain in self.domain_list))
+                        for identifier in self.file_identifier:
+                            if identifier in self.app_history_list:
+                                if not(domain in self.domain_list):
+                                    self.domain_list.append(domain)
+                                    self.__write_content_in_file__(cores.domain_history_path,domain)
+                                continue
+
                             if not(domain in self.domain_list):
                                 self.domain_list.append(domain)
                                 self.__write_content_in_file__(cores.domain_history_path,domain)
+
                             if append_file_flag:
-                                for identifier in self.file_identifier:
-                                    if self.file_identifier in self.app_history_list:
-                                        continue
-                                    self.__write_content_in_file__(cores.app_history_path,identifier)
-                                    append_file_flag = False
+                                self.__write_content_in_file__(cores.app_history_path,identifier)
+                                append_file_flag = False
                     self.value_list.append(result)
                     f.write("\t"+result+"\r")
             f.close()

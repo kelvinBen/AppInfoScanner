@@ -16,11 +16,14 @@ class NetThreads(threading.Thread):
 
     def __get_Http_info__(self,threadLock):
         while True:
+            if self.domain_queue.empty():
+                break
             domains = self.domain_queue.get(timeout=5)
             domain = domains["domain"] 
             url_ip = domains["url_ip"]
             time.sleep(2)
             result = self.__get_request_result__(url_ip)
+            print("[+] Processing URL address："+url_ip)
             if result != "error":
                 if self.lock.acquire(True):
                     cores.excel_row = cores.excel_row + 1
@@ -33,17 +36,15 @@ class NetThreads(threading.Thread):
                         self.worksheet.write(cores.excel_row, 5, label = result["server"])
                         self.worksheet.write(cores.excel_row, 6, label = result["title"])
                         self.worksheet.write(cores.excel_row, 7, label = result["cdn"])
-                        self.worksheet.write(cores.excel_row, 8, label = "")
+                        # self.worksheet.write(cores.excel_row, 8, label = "")
                     self.lock.release()
-            if self.domain_queue.empty():
-                break
+            
+               
 
     def __get_request_result__(self,url):
         result={"status":"","server":"","cookie":"","cdn":"","des_ip":"","sou_ip":"","title":""}
         cdn = ""
         try:
-            # python3 app.py ios -i C:\Users\Administrator\Desktop\frida-ipa-dump\三晋通\Payload\三晋通.app\三晋通
-            # 
             with requests.get(url, timeout=5,stream=True) as rsp:
                 status_code = rsp.status_code
                 result["status"] = status_code
@@ -80,7 +81,6 @@ class NetThreads(threading.Thread):
         except requests.exceptions.ReadTimeout as e2:
             return "timeout"
 
-    
     def run(self):
         threadLock = threading.Lock()
         self.__get_Http_info__(threadLock)

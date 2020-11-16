@@ -29,35 +29,26 @@ filter_components = [
 # 3. URI地址,URI不能很好的拼接所以此处忽略
 filter_strs =[
     r'https://.*|http://.*',
-    r'.*://([[0-9]{1,3}\.]{3}[0-9]{1,3}).*',
+    # r'.*://([[0-9]{1,3}\.]{3}[0-9]{1,3}).*',
+    r'.*://([\d{1,3}\.]{3}\d{1,3}).*'
     # r'/[a-z0-9A-Z]+/.*'
 ]
 
 # 此处忽略常见的域名等信息
 filter_no = [
-    # r'.*127.0.0.1',
-    # r'.*0.0.0.0',
-    # r'.*localhost',
-    # r'.*w3.org',
-    # r'.*apache.org',
-    # r'.*android.com',
-    # r'.*weixin.qq.com',
-    # r'.*jpush.cn',
-    # r'.*umengcloud.com',
-    # r'.*umeng.com',
-    # r'.*baidu.com',
-    # r'.*apple.com',
-    # r'.*alibaba.com',
-    # r'.*qq.com',
-    # r'.*sohu.com',
-    # r'.*openssl.org',
-    # r'.*weibo.com',
-    # r'.*wechat.com',
-    # r'.*.amap.com',
-    # r'.*openxmlformats.org',
-    # r'.*github.com',
-    # r'.*w3school.com.cn',
-    # r'.*google.com'
+    r'.*127.0.0.1',
+    r'.*0.0.0.0',
+    r'.*localhost',
+    r'.*w3.org',
+    r'.*apache.org',
+    r'.*android.com',
+    r'.*jpush.cn',
+    r'.*umengcloud.com',
+    r'.*umeng.com',
+    r'.*github.com',
+    r'.*w3school.com.cn',
+    r'.*apple.com',
+    r'.*.amap.com',
 ]
 
 # 此处配置壳信息
