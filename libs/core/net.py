@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+# Author: kelvinBen
+# Github: https://github.com/kelvinBen/AppInfoScanner
 import re
 import time
 import threading
@@ -39,8 +42,6 @@ class NetThreads(threading.Thread):
                         # self.worksheet.write(cores.excel_row, 8, label = "")
                     self.lock.release()
             
-               
-
     def __get_request_result__(self,url):
         result={"status":"","server":"","cookie":"","cdn":"","des_ip":"","sou_ip":"","title":""}
         cdn = ""
