@@ -67,6 +67,7 @@ class BaseTask(object):
 
 
     def __tast_control__(self):
+        
         task_info = {}
         # 调用Android 相关处理逻辑
         if self.types == "Android":
