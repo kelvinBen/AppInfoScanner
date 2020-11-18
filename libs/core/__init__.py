@@ -38,6 +38,7 @@ class Bootstrapper(object):
         global app_history_path
         global domain_history_path
         global excel_row 
+        global download_path
 
         create_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
 
@@ -60,20 +61,25 @@ class Bootstrapper(object):
         apktool_path = os.path.join(tools_dir, "apktool.jar")
         output_path = os.path.join(script_root_dir,"out")
         history_path = os.path.join(script_root_dir,"history")
+        download_path = os.path.join(script_root_dir,"download")
         txt_result_path = os.path.join(script_root_dir,"result_"+str(create_time)+".txt")
         xls_result_path = os.path.join(script_root_dir,"result_"+str(create_time)+".xls")
         app_history_path = os.path.join(history_path,"app_history.txt")
         domain_history_path = os.path.join(history_path,"domain_history.txt")
-        # 包名信息一致的情况不记录URL信息 ，不一致的时候记录URL信息
+
 
     def init(self):
         if os.path.exists(output_path):
             shutil.rmtree(output_path)
         os.makedirs(output_path)
 
+        if os.path.exists(download_path):
+            shutil.rmtree(download_path)
+        os.makedirs(download_path)
+
         if not os.path.exists(history_path):
             os.makedirs(history_path)
-
+        
         if os.path.exists(txt_result_path):
             os.remove(txt_result_path)
 
