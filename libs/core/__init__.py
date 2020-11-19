@@ -22,6 +22,9 @@ os_type = ""
 # 输出路径
 output_path = ""
 
+# 下载完成标记
+download_flag = False
+
 class Bootstrapper(object):
 
     def __init__(self, path):
@@ -39,6 +42,7 @@ class Bootstrapper(object):
         global domain_history_path
         global excel_row 
         global download_path
+        global download_flag
 
         create_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
 

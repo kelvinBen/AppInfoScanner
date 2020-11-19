@@ -16,13 +16,13 @@ class DownloadTask(object):
         create_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
         if path.endswith("apk"):
             types = "Android"
-            file_suffix = ".apk"
+            file_name = create_time+ ".apk"
         elif path.endswith("ipa"):
             types = "iOS"
-            file_suffix = ".ipa"
+            file_name = create_time + ".ipa"
         else:
             types = "WEB"
-            file_suffix = ".html"
+            file_name = create_time + ".html"
 
         if not(path.startswith("http://") or path.startswith("https://")):
             if not os.path.isdir(path):
@@ -31,8 +31,8 @@ class DownloadTask(object):
                 return {"path":self.path,"type":self.types}
         else:
             print("[*] Detected that the task is not local, preparing to download file......")
-            cache_path = os.path.join(cores.download_path, create_time + file_suffix)            
-            thread = DownloadThreads(path,cache_path,types)
+            cache_path = os.path.join(cores.download_path, file_name)            
+            thread = DownloadThreads(path,file_name,cache_path,types)
             thread.start()
             thread.join()
             

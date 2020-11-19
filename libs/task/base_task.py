@@ -77,7 +77,7 @@ class BaseTask(object):
         cache_info = DownloadTask().start(self.path,self.types)
         cacar_path = cache_info["path"]
         types = cache_info["type"]
-        if not os.path.exists(cacar_path):
+        if not os.path.exists(cacar_path) and cores.download_flag:
             print("[-] File download failed! Please download the file manually and try again.")
             return task_info
 

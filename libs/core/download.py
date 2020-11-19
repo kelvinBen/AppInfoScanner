@@ -14,11 +14,12 @@ from requests.adapters import HTTPAdapter
 
 class DownloadThreads(threading.Thread):    
 
-    def __init__(self,input_path,cache_path,types):
+    def __init__(self,input_path,file_name,cache_path,types):
         threading.Thread.__init__(self) 
         self.url = input_path 
         self.types = types
         self.cache_path = cache_path
+        self.file_name = file_name
 
     def __requset__(self):
         try:
@@ -45,11 +46,11 @@ class DownloadThreads(threading.Thread):
                             if chunk:
                                 f.write(chunk)
                                 count += len(chunk)
-                                if time.time() - time1 > 2:
+                                if time.time() - time1 > 1:
                                     p = count / length * 100
                                     speed = (count - count_tmp) / 1024 / 1024 / 2
-                                    count_tmp = count
-                                    print(name + ': ' + formatFloat(p) + '%' + ' Speed: ' + formatFloat(speed) + 'M/S')
+                                    # count_tmp = count
+                                    print(self.file_name + ': ' + formatFloat(p) + '%' + ' Speed: ' + formatFloat(speed) + 'M/S')
                                     time1 = time.time()
                         f.close()
                 else:
@@ -57,11 +58,11 @@ class DownloadThreads(threading.Thread):
                     with open(self.cache_path,"w",encoding='utf-8',errors='ignore') as f:
                         f.write(html)
                         f.close()
-            else:
-                return
+                cores.download_flag = True
         except Exception:
             return
-        
+    def formatFloat(num):
+        return '{:.2f}'.format(num)    
 
     def run(self):
         threadLock = threading.Lock()
