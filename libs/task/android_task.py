@@ -69,7 +69,7 @@ class AndroidTask(object):
             self.__shell_test__(output_path)
             self.__scanner_file_by_apktool__(output_path)
         else:
-            print("Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+            print("[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
             raise Exception(file_path + ", Decompilation failed.")
                 
 
@@ -79,7 +79,7 @@ class AndroidTask(object):
         if os.system(cmd_str) == 0:
             self.__get_scanner_file__(output_path)
         else:
-            print("Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+            print("[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
             raise Exception(file_path + ", Decompilation failed.")
     
 

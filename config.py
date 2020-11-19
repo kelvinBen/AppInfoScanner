@@ -84,7 +84,7 @@ web_file_suffix =[
 ]
 
 # 配置自动下载Apk文件或者缓存HTML的请求头信息
-header = {
+headers = {
     "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0",
     "Connection":"close"
 }

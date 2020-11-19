@@ -3,23 +3,37 @@
 # Github: https://github.com/kelvinBen/AppInfoScanner
 import os
 import re
+import time
 import config
 import hashlib
 from queue import Queue
 import libs.core as cores
-
+from libs.core.download import DownloadThreads
 
 class DownloadTask(object):
 
-    def __init__(self):
-        self.path = path
+    def start(self,path,types):
+        create_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
+        if path.endswith("apk"):
+            types = "Android"
+            file_suffix = ".apk"
+        elif path.endswith("ipa"):
+            types = "iOS"
+            file_suffix = ".ipa"
+        else:
+            types = "WEB"
+            file_suffix = ".html"
 
-    def start(self):
-        input_path = self.path
-        if input_path.startswith("http://") or input_path.startswith("https://"):
-            if input_path.endswith("apk"):
-                # 用来下载APK或者缓存H5或者页面内容
-                pass
+        if not(path.startswith("http://") or path.startswith("https://")):
+            if not os.path.isdir(path):
+                return {"path":self.path,"type":types}
+            else:
+                return {"path":self.path,"type":self.types}
+        else:
+            print("[*] Detected that the task is not local, preparing to download file......")
+            cache_path = os.path.join(cores.download_path, create_time + file_suffix)            
+            thread = DownloadThreads(path,cache_path,types)
+            thread.start()
+            thread.join()
             
-        return input_path
-        
+            return {"path":cache_path,"type":types}
