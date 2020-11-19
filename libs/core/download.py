@@ -5,19 +5,23 @@ import re
 import os
 import time
 import config
-import threading
 import requests
+import threading
 import libs.core as cores
+from requests.packages import urllib3
+from requests.adapters import HTTPAdapter    
+
 
 class DownloadThreads(threading.Thread):    
 
-    def __init__(self, path, type):
-        self.url = path 
-        self.type = type
+    def __init__(self,input_path,cache_path,types):
+        threading.Thread.__init__(self) 
+        self.url = input_path 
+        self.types = types
+        self.cache_path = cache_path
 
     def __requset__(self):
         try:
-            create_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
             session = requests.Session()
             session.mount('http://', HTTPAdapter(max_retries=3))
             session.mount('https://', HTTPAdapter(max_retries=3))
@@ -31,13 +35,12 @@ class DownloadThreads(threading.Thread):
                 resp = session.get(url=self.url,data=config.data ,headers=config.headers,timeout=30)
             
             if resp.status_code == requests.codes.ok:
-                if self.type == "apk":
+                if self.types == "Android" or self.types == "iOS":
                     count = 0
                     count_tmp = 0
                     time1 = time.time()
                     length = float(resp.headers['content-length'])
-                    apk_path = os.path.join(cores.download_path, create_time+".apk")
-                    with open(apk_path, "wb") as f:
+                    with open(self.cache_path, "wb") as f:
                         for chunk in resp.iter_content(chunk_size = 512):
                             if chunk:
                                 f.write(chunk)
@@ -50,15 +53,16 @@ class DownloadThreads(threading.Thread):
                                     time1 = time.time()
                         f.close()
                 else:
-                    html_path = os.path.join(cores.download_path, create_time+".html")
                     html = resp.html()
-                    with open(html_path,"w",encoding='utf-8',errors='ignore') as f:
+                    with open(self.cache_path,"w",encoding='utf-8',errors='ignore') as f:
                         f.write(html)
                         f.close()
+            else:
+                return
         except Exception:
-            break
+            return
         
 
     def run(self):
         threadLock = threading.Lock()
-        self.__get_Http_info__(threadLock)
+        self.__requset__()

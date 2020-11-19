@@ -7,11 +7,12 @@ import config
 import threading
 from queue import Queue
 import libs.core as cores
-from libs.core.parses import ParsesThreads
-from libs.task.android_task import AndroidTask
 from libs.task.ios_task import iOSTask
 from libs.task.web_task import WebTask
 from libs.task.net_task import NetTask
+from libs.core.parses import ParsesThreads
+from libs.task.android_task import AndroidTask
+from libs.task.download_task import DownloadTask
 
 class BaseTask(object):
     thread_list =[]
@@ -44,6 +45,9 @@ class BaseTask(object):
 
         # 任务控制中心
         task_info = self.__tast_control__()
+        if len(task_info) < 1:
+            return
+
         file_queue = task_info["file_queue"]
         shell_flag = task_info["shell_flag"]
         comp_list = task_info["comp_list"]
@@ -67,17 +71,25 @@ class BaseTask(object):
 
 
     def __tast_control__(self):
-        
         task_info = {}
+        
+        # 自动根据文件后缀名称进行修正
+        cache_info = DownloadTask().start(self.path,self.types)
+        cacar_path = cache_info["path"]
+        types = cache_info["type"]
+        if not os.path.exists(cacar_path):
+            print("[-] File download failed! Please download the file manually and try again.")
+            return task_info
+
         # 调用Android 相关处理逻辑
-        if self.types == "Android":
-            task_info = AndroidTask(self.path,self.no_resource,self.package).start()
+        if types == "Android":
+            task_info = AndroidTask(cacar_path,self.no_resource,self.package).start()
         # 调用iOS 相关处理逻辑
-        elif self.types == "iOS":
-            task_info = iOSTask(self.path,self.no_resource).start()
+        elif types == "iOS":
+            task_info = iOSTask(cacar_path,self.no_resource).start()
         # 调用Web 相关处理逻辑
         else:
-            task_info = WebTask(self.path).start()
+            task_info = WebTask(cacar_path).start()
         return task_info
 
     def __threads_control__(self,file_queue):

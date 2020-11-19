@@ -102,39 +102,3 @@ class NetTask(object):
             f.write(content+"\r")
             f.close()
 
-
-def __get_request_result__(url):
-        result={"status":"","server":"","cookie":"","cdn":"","des_ip":"","sou_ip":"","title":""}
-        cdn = ""
-        try:
-            rsp = requests.get(url, timeout=5,stream=True)
-            status_code = rsp.status_code
-            result["status"] = status_code
-            headers = rsp.headers
-            if "Server" in headers:
-                result["server"] = headers['Server']
-            if "Cookie" in headers:
-                result["cookie"] = headers['Cookie']
-            if "X-Via" in headers:
-                cdn = cdn + headers['X-Via']
-            if "Via" in headers:
-                cdn = cdn + headers['Via']
-            result["cdn"]  = cdn
-            sock = rsp.raw._connection.sock
-            if sock:
-                des_ip = sock.getpeername()[0]
-                sou_ip = sock.getsockname()[0]
-                if des_ip:
-                    result["des_ip"]  = des_ip
-                if sou_ip:
-                    result["sou_ip"]  = sou_ip
-            html = rsp.text
-            title = re.findall('<title>(.+)</title>',html)
-            result["title"]  = title
-            return result
-        except requests.exceptions.InvalidURL as e:
-            return "error"
-        except requests.exceptions.ConnectionError as e1:
-           return "timeout"
-
-# print(__get_request_result__("http://download.sxzwfw.gov.cn/getMerchantSign"))
