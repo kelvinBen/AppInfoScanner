@@ -11,11 +11,9 @@ import libs.core as cores
 
 class AndroidTask(object):
 
-    def __init__(self,path,no_resource,package):
+    def __init__(self,path,package):
         self.path = path
-        self.no_resource = no_resource
         self.package = package
-
         self.file_queue = Queue()
         self.shell_flag=False
         self.packagename=""
@@ -93,7 +91,7 @@ class AndroidTask(object):
 
             if "smali" in file_name or "assets" in file_name:
                 scanner_file_suffixs = ["smali","js","xml"]
-                if self.no_resource:
+                if cores.resource_flag:
                     scanner_file_suffixs =["smali"]
                 self.__get_scanner_file__(file_path,scanner_file_suffixs)
 

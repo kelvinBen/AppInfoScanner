@@ -13,10 +13,8 @@ from queue import Queue
 
 class iOSTask(object):
     elf_file_name = ""
-    def __init__(self,path,no_resource):
+    def __init__(self,path):
         self.path = path
-        self.no_resource = no_resource
-
         self.file_queue = Queue()
         self.shell_flag = False
         self.file_identifier= []
@@ -78,7 +76,7 @@ class iOSTask(object):
                     self.__get_file_header__(dir_file_path)
                     self.file_queue.put(dir_file_path)
                     continue
-                if self.no_resource:    
+                if cores.resource_flag:    
                     dir_file_suffix =  dir_file.split(".")
                     if len(dir_file_suffix) > 1:
                         if dir_file_suffix[-1] in file_suffix:

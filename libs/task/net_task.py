@@ -5,6 +5,7 @@
 import re
 import xlwt
 import socket
+import config
 from queue import Queue
 import libs.core as cores
 from libs.core.net import NetThreads
@@ -14,13 +15,14 @@ class NetTask(object):
     value_list = []
     domain_list=[]
     
-    def __init__(self,result_dict,app_history_list,file_identifier,threads):
+    def __init__(self,result_dict,app_history_list,domain_history_list,file_identifier,threads):
         self.result_dict = result_dict
         self.app_history_list = app_history_list
         self.file_identifier = file_identifier
         self.domain_queue = Queue()
-        self.threads = threads 
+        self.threads = int(threads) 
         self.thread_list = []
+        self.domain_history_list = domain_history_list
 
     def start(self):
         xls_result_path = cores.xls_result_path
@@ -55,13 +57,22 @@ class NetTask(object):
         
         with open(txt_result_path,"a+",encoding='utf-8',errors='ignore') as f:
             for key,value in self.result_dict.items():
-                f.write(key+"\r")
+                if cores.all_flag:
+                    f.write(key+"\r")
+                    
                 for result in value:
                     if result in self.value_list:
                         continue
+                    self.value_list.append(result)
+                    if cores.all_flag:
+                        f.write("\t"+result+"\r")
 
                     if (("http://" in result) or ("https://" in result)) and ("." in result):
                         domain = result.replace("https://","").replace("http://","")
+                        
+                        if "{" in result or "}" in result or "[" in result or "]" in result:
+                            continue
+
                         if "/" in domain:
                             domain = domain[:domain.index("/")]
                         
@@ -70,11 +81,14 @@ class NetTask(object):
                         # 目前流通的域名中加上协议头最短长度为11位
                         if len(result) <= 10:
                             continue
-                        self.domain_queue.put({"domain":domain,"url_ip":result})
-
+                        
+                        url_suffix = result[result.rindex(".")+1:].lower()
+                        if not(cores.resource_flag and url_suffix in config.sniffer_filter):
+                            self.domain_queue.put({"domain":domain,"url_ip":result})
+                        
                         for identifier in self.file_identifier:
                             if identifier in self.app_history_list:
-                                if not(domain in self.domain_list):
+                                if not(domain in self.domain_history_list): 
                                     self.domain_list.append(domain)
                                     self.__write_content_in_file__(cores.domain_history_path,domain)
                                 continue
@@ -86,8 +100,7 @@ class NetTask(object):
                             if append_file_flag:
                                 self.__write_content_in_file__(cores.app_history_path,identifier)
                                 append_file_flag = False
-                    self.value_list.append(result)
-                    f.write("\t"+result+"\r")
+                    
             f.close()
 
     def __start_threads__(self,worksheet):

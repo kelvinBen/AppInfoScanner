@@ -3,6 +3,7 @@
 # Github: https://github.com/kelvinBen/AppInfoScanner
 import re
 import os
+import sys
 import time
 import config
 import requests
@@ -38,7 +39,7 @@ class DownloadThreads(threading.Thread):
             if resp.status_code == requests.codes.ok:
                 if self.types == "Android" or self.types == "iOS":
                     count = 0
-                    count_tmp = 0
+                    progress_tmp = 0
                     time1 = time.time()
                     length = float(resp.headers['content-length'])
                     with open(self.cache_path, "wb") as f:
@@ -46,12 +47,12 @@ class DownloadThreads(threading.Thread):
                             if chunk:
                                 f.write(chunk)
                                 count += len(chunk)
-                                if time.time() - time1 > 1:
-                                    p = count / length * 100
-                                    speed = (count - count_tmp) / 1024 / 1024 / 2
-                                    # count_tmp = count
-                                    print(self.file_name + ': ' + formatFloat(p) + '%' + ' Speed: ' + formatFloat(speed) + 'M/S')
-                                    time1 = time.time()
+                                progress = int(count / length * 100)
+                                if progress != progress_tmp:
+                                    progress_tmp = progress
+                                    print("\r", end="")
+                                    print("[*] Download progress: {}%: ".format(progress), "▋" * (progress // 2), end="")
+                                    sys.stdout.flush()
                         f.close()
                 else:
                     html = resp.html()
@@ -59,10 +60,9 @@ class DownloadThreads(threading.Thread):
                         f.write(html)
                         f.close()
                 cores.download_flag = True
-        except Exception:
+        except Exception as e:
+            raise Exception(e)
             return
-    def formatFloat(num):
-        return '{:.2f}'.format(num)    
 
     def run(self):
         threadLock = threading.Lock()
