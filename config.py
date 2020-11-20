@@ -83,6 +83,14 @@ web_file_suffix =[
     "py"
 ]
 
+# 配置需要忽略网络嗅探的文件后缀名,此处根据具体需求进行配置，默认为不过滤
+sniffer_filter=[
+    # "jpg",
+    # "png",
+    # "jpeg",
+    # "gif",
+]
+
 # 配置自动下载Apk文件或者缓存HTML的请求头信息
 headers = {
     "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0",

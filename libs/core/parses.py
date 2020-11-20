@@ -10,13 +10,12 @@ import libs.core as cores
 
 class ParsesThreads(threading.Thread):
 
-    def __init__(self,threadID,name,file_queue,all,result_dict,types):
+    def __init__(self,threadID,name,file_queue,result_dict,types):
         threading.Thread.__init__(self) 
         self.file_queue = file_queue
         self.name = name
         self.threadID = threadID
         self.result_list = []
-        self.all = all
         self.result_dict=result_dict
         self.types = types
             
@@ -75,7 +74,8 @@ class ParsesThreads(threading.Thread):
                     continue
 
                 self.threadLock.acquire()
-                print("[+] The string searched for matching rule is: %s" % (resl_str))
+                if cores.all_flag:
+                    print("[+] The string searched for matching rule is: %s" % (resl_str))
                 self.result_list.append(resl_str)
                 self.threadLock.release()
             continue
@@ -87,7 +87,7 @@ class ParsesThreads(threading.Thread):
         if len(resl_str) == 0:
             return 0
             
-        for filte in config.filter_no:
+        for filte in set(config.filter_no):
             resl_str = resl_str.replace(filte,"")
             if len(resl_str) == 0:
                 return_flag = 0 

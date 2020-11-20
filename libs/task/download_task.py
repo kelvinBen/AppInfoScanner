@@ -21,8 +21,15 @@ class DownloadTask(object):
             types = "iOS"
             file_name = create_time + ".ipa"
         else:
-            types = "WEB"
-            file_name = create_time + ".html"
+            if types == "Android":
+                types = "Android"
+                file_name = create_time+ ".apk"
+            elif types == "iOS":
+                types = "iOS"
+                file_name = create_time + ".ipa"
+            else:
+                types = "WEB"
+                file_name = create_time + ".html"
 
         if not(path.startswith("http://") or path.startswith("https://")):
             if not os.path.isdir(path):
@@ -35,5 +42,6 @@ class DownloadTask(object):
             thread = DownloadThreads(path,file_name,cache_path,types)
             thread.start()
             thread.join()
+            print()
             
             return {"path":cache_path,"type":types}

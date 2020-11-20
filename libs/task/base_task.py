@@ -18,18 +18,16 @@ class BaseTask(object):
     thread_list =[]
     result_dict = {}
     app_history_list=[]
-    
+    domain_history_list=[]
     # 统一初始化入口
-    def __init__(self, types="Android", inputs="", rules="", net_sniffer=True, no_resource=False, package="", all_str=False, threads=10):
+    def __init__(self, types="Android", inputs="", rules="", sniffer=True, threads=10, package=""):
         self.types = types
-        self.net_sniffer = net_sniffer
         self.path = inputs
         if rules:
             config.filter_strs.append(r'.*'+str(rules)+'.*')
-        self.no_resource = no_resource
-        self.package = package
-        self.all = all_str
+        self.sniffer = not sniffer
         self.threads = threads
+        self.package = package
         self.file_queue = Queue()
         
     
@@ -41,7 +39,7 @@ class BaseTask(object):
         # 获取历史记录
         self.__history_handle__()
 
-        print("[*] The filtering rules obtained by AI are as follows: %s" % (config.filter_no) )
+        print("[*] The filtering rules obtained by AI are as follows: %s" % (set(config.filter_no)) )
 
         # 任务控制中心
         task_info = self.__tast_control__()
@@ -55,7 +53,7 @@ class BaseTask(object):
         file_identifier = task_info["file_identifier"]
         
         if shell_flag:
-            print('\033[3;31m Error: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
+            print('[-] \033[3;31m Error: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
             return
 
         # 线程控制中心
@@ -72,21 +70,21 @@ class BaseTask(object):
 
     def __tast_control__(self):
         task_info = {}
-        
         # 自动根据文件后缀名称进行修正
         cache_info = DownloadTask().start(self.path,self.types)
         cacar_path = cache_info["path"]
         types = cache_info["type"]
-        if not os.path.exists(cacar_path) and cores.download_flag:
+
+        if not (os.path.exists(cacar_path) and cores.download_flag):
             print("[-] File download failed! Please download the file manually and try again.")
             return task_info
 
         # 调用Android 相关处理逻辑
         if types == "Android":
-            task_info = AndroidTask(cacar_path,self.no_resource,self.package).start()
+            task_info = AndroidTask(cacar_path,self.package).start()
         # 调用iOS 相关处理逻辑
         elif types == "iOS":
-            task_info = iOSTask(cacar_path,self.no_resource).start()
+            task_info = iOSTask(cacar_path).start()
         # 调用Web 相关处理逻辑
         else:
             task_info = WebTask(cacar_path).start()
@@ -94,17 +92,19 @@ class BaseTask(object):
 
     def __threads_control__(self,file_queue):
         for threadID in range(1,self.threads): 
-            name = "Thread - " + str(threadID)
-            thread =  ParsesThreads(threadID,name,file_queue,self.all,self.result_dict,self.types)
+            name = "Thread - " + str(int(threadID))
+            thread =  ParsesThreads(threadID,name,file_queue,self.result_dict,self.types)
             thread.start()
             self.thread_list.append(thread)
 
     def __print_control__(self,packagename,comp_list,file_identifier):
         txt_result_path = cores.txt_result_path
         xls_result_path = cores.xls_result_path
-        
-        # 此处需要hash值或者应用名称, apk文件获取pachage, dex文件获取hash, macho-o获取文件名
-
+                
+        if self.sniffer:
+            print("[*] ========= Sniffing the URL address of the search ===============")
+            NetTask(self.result_dict,self.app_history_list,self.domain_history_list,file_identifier,self.threads).start()
+            
         if packagename: 
             print("[*] =========  The package name of this APP is: ===============")
             print(packagename)
@@ -114,12 +114,12 @@ class BaseTask(object):
             for json in comp_list:
                 print(json)
         
-        if self.net_sniffer:
-            print("[*] ========= Sniffing the URL address of the search ===============")
-            NetTask(self.result_dict,self.app_history_list,file_identifier,self.threads).start()
+        if cores.all_flag:
+            print("[*] For more information about the search, see TXT file result: %s" %(cores.txt_result_path))
+
+        if self.sniffer:
             print("[*] For more information about the search, see XLS file result: %s" %(cores.xls_result_path))
-        print("[*] For more information about the search, see TXT file result: %s" %(cores.txt_result_path))
-    
+
     def __history_handle__(self):
         domain_history_path =  cores.domain_history_path
         app_history_path = cores.app_history_path
@@ -141,8 +141,8 @@ class BaseTask(object):
                     cout = cout + 1
                 for line in lines:
                     domain = line.replace("\r","").replace("\n","")
+                    self.domain_history_list.append(domain)
                     domain_count = lines.count(line)
-                    
                     if domain_count >= cout:
                         config.filter_no.append(domain)
                 f.close()
