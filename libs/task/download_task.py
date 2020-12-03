@@ -33,9 +33,9 @@ class DownloadTask(object):
 
         if not(path.startswith("http://") or path.startswith("https://")):
             if not os.path.isdir(path):
-                return {"path":self.path,"type":types}
+                return {"path":path,"type":types}
             else:
-                return {"path":self.path,"type":self.types}
+                return {"path":path,"type":types}
         else:
             print("[*] Detected that the task is not local, preparing to download file......")
             cache_path = os.path.join(cores.download_path, file_name)            
