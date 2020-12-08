@@ -75,9 +75,6 @@ class BaseTask(object):
         cacar_path = cache_info["path"]
         types = cache_info["type"]
         
-        print(os.path.exists(cacar_path))
-        print(cores.download_flag)
-
         if (not os.path.exists(cacar_path) and cores.download_flag):
             print("[-] File download failed! Please download the file manually and try again.")
             return task_info
@@ -147,7 +144,7 @@ class BaseTask(object):
                     self.domain_history_list.append(domain)
                     domain_count = lines.count(line)
                     if domain_count >= cout:
-                        config.filter_no.append(domain)
+                        config.filter_no.append(".*" + domain)
                 f.close()
 
     
