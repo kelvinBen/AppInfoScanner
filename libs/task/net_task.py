@@ -70,7 +70,7 @@ class NetTask(object):
                     if (("http://" in result) or ("https://" in result)) and ("." in result):
                         domain = result.replace("https://","").replace("http://","")
                         
-                        if "{" in result or "}" in result or "[" in result or "]" in result:
+                        if "{" in result or "}" in result or "[" in result or "]" in result or "\\" in result or "!" in result or "," in result:
                             continue
 
                         if "/" in domain:

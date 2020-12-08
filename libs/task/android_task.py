@@ -37,15 +37,26 @@ class AndroidTask(object):
 
     def __decode_file__(self,file_path):
         apktool_path = str(cores.apktool_path)
-        output_path = str(cores.output_path)
         backsmali_path = str(cores.backsmali_path)
-        suffix_name = file_path.split(".")[-1]
+        base_out_path = str(cores.output_path)
+        filename =  os.path.basename(file_path)
+        suffix_name = filename.split(".")[-1]
+
         if suffix_name == "apk":
+            name = filename.split(".")[0]
+            output_path = os.path.join(base_out_path,name)
             self.__decode_apk__(file_path,apktool_path,output_path)
         elif suffix_name == "dex":
-            with open(file_path,'rb') as f:
-                dex_md5 = str(hashlib.md5().update(f.read()).hexdigest()).upper()
-                self.file_identifier.append(dex_md5)
+            f = open(file_path,'rb')
+            md5_obj = hashlib.md5()
+            while True:
+                r =  f.read(1024)
+                if not r:
+                    break
+                md5_obj.update(r)
+            dex_md5 = md5_obj.hexdigest().lower()
+            self.file_identifier.append(dex_md5)
+            output_path = os.path.join(base_out_path,dex_md5)
             self.__decode_dex__(file_path,backsmali_path,output_path)
         else:
             return "error"
