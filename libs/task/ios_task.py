@@ -93,9 +93,9 @@ class iOSTask(object):
             except UnicodeEncodeError:
                 new_zip_file =  zip_file_names[0].encode('utf-8').decode('utf-8')
             
-            old_zip_dir = self.__get_parse_dir__(output_path,zip_file_names[0])
-            new_zip_dir = self.__get_parse_dir__(output_path,new_zip_file)
-            os.rename(old_zip_dir,new_zip_dir)
+                old_zip_dir = self.__get_parse_dir__(output_path,zip_file_names[0])
+                new_zip_dir = self.__get_parse_dir__(output_path,new_zip_file)
+                os.rename(old_zip_dir,new_zip_dir)
             for zip_file in zip_file_names:
                
                 old_ext_path = zip_files.extract(zip_file,output_path)
