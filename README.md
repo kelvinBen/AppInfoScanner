@@ -1,3 +1,6 @@
+![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange)
+
+
 该项目目前仅仅是规划项目中的冰山一角，如果您对此项目感兴趣或者想参与后继项目的开发工作或者翻译工作中，请发送邮件至blsm@vip.qq.com说明你的能力和诉求。
 
 ### AppInfoScanner
@@ -371,3 +374,20 @@ method: 用于配置自动下载过程中需要的请求方法
 ```
 请将错误截图以及对应的APK文件提交至 https://github.com/kelvinBen/AppInfoScanner/issues，作者看到后会及时进行处理。
 ```
+
+## 联系作者
+
+**微信**：bromomo (添加好友请备注：GitHub)
+
+**邮箱**：blsm@vip.qq.com
+
+提交需求、提交BUG修复、技术交流、商务合作均可添加作者好友。
+
+
+
+# 404StarLink 2.0 - Galaxy
+![](https://github.com/knownsec/404StarLink-Project/raw/master/logo.png)
+
+AppInfoScanner 是 404Team [星链计划2.0](https://github.com/knownsec/404StarLink2.0-Galaxy)中的一环，如果对AppInfoScanner 有任何疑问又或是想要找小伙伴交流，可以参考星链计划的加群方式。
+
+[https://github.com/knownsec/404StarLink2.0-Galaxy#community](https://github.com/knownsec/404StarLink2.0-Galaxy#community)

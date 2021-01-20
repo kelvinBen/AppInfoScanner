@@ -30,12 +30,10 @@ class DownloadTask(object):
             else:
                 types = "WEB"
                 file_name = create_time + ".html"
-
         if not(path.startswith("http://") or path.startswith("https://")):
             if not os.path.isdir(path): # 不是目录
                 return {"path":path,"type":types}
             else: # 目录处理
-                
                 return {"path":path,"type":types}
         else:
             print("[*] Detected that the task is not local, preparing to download file......")
@@ -44,5 +42,4 @@ class DownloadTask(object):
             thread.start()
             thread.join()
             print()
-            
             return {"path":cache_path,"type":types}
