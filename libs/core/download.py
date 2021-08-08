@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
@@ -11,7 +12,6 @@ import threading
 import libs.core as cores
 from requests.packages import urllib3
 from requests.adapters import HTTPAdapter    
-
 
 class DownloadThreads(threading.Thread):    
 
@@ -55,7 +55,7 @@ class DownloadThreads(threading.Thread):
                                     sys.stdout.flush()
                         f.close()
                 else:
-                    html = resp.html()
+                    html = resp.text
                     with open(self.cache_path,"w",encoding='utf-8',errors='ignore') as f:
                         f.write(html)
                         f.close()

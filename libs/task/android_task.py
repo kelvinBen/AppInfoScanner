@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
@@ -57,6 +58,8 @@ class AndroidTask(object):
             dex_md5 = md5_obj.hexdigest().lower()
             self.file_identifier.append(dex_md5)
             output_path = os.path.join(base_out_path,dex_md5)
+            if not os.path.exists(output_path):
+                os.makedirs(output_path)
             self.__decode_dex__(file_path,backsmali_path,output_path)
         else:
             return "error"
@@ -73,7 +76,7 @@ class AndroidTask(object):
 
     # 分解apk
     def __decode_apk__(self,file_path,apktool_path,output_path):
-        cmd_str = ("java -jar %s d -f %s -o %s --only-main-classe") % (apktool_path,str(file_path),output_path)
+        cmd_str = ('java -jar "%s" d -f "%s" -o "%s" --only-main-classe') % (str(apktool_path),str(file_path),str(output_path))
         if os.system(cmd_str) == 0:
             self.__shell_test__(output_path)
             self.__scanner_file_by_apktool__(output_path)
@@ -84,7 +87,7 @@ class AndroidTask(object):
 
     # 分解dex
     def __decode_dex__(self,file_path,backsmali_path,output_path):
-        cmd_str = ("java -jar %s d %s") % (backsmali_path,str(file_path))
+        cmd_str = ('java -jar "%s" d "%s"') % (str(backsmali_path),str(file_path))
         if os.system(cmd_str) == 0:
             self.__get_scanner_file__(output_path)
         else:

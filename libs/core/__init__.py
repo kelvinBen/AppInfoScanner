@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
@@ -87,7 +88,14 @@ class Bootstrapper(object):
             print("[*] Create directory {}".format(out_dir))
 
         if os.path.exists(output_path):
-            shutil.rmtree(output_path)
+            try:
+                shutil.rmtree(output_path)
+            except Exception as e:
+                # 解决windows超长文件名删除问题
+                if not (platform.system() == "Windows"):
+                    raise e
+                self.__removed_dirs_cmd__(output_path)
+                
         os.makedirs(output_path)
         print("[*] Create directory {}".format(output_path))
 
@@ -105,9 +113,16 @@ class Bootstrapper(object):
 
         if os.path.exists(xls_result_path):
             os.remove(xls_result_path)
-
-        
-            
-
-
-        
+    
+    def __removed_dirs_cmd__(self,output_path):
+        files = os.listdir(output_path)
+        for file in files:
+            new_dir = os.path.join(output_path,"newdir")
+            old_dir = os.path.join(output_path,file)
+            if not os.path.exists(new_dir):
+                os.makedirs(new_dir)
+            os.chdir(output_path)
+            cmd = ("robocopy %s %s /purge") % (new_dir, old_dir)
+            os.system(cmd)
+            os.removedirs(new_dir)
+            os.removedirs(old_dir)
