@@ -6,6 +6,7 @@ import os
 import time
 import shutil
 import platform
+import logging
 
 # smali 所在路径
 smali_path = ""
@@ -97,16 +98,16 @@ class Bootstrapper(object):
                 self.__removed_dirs_cmd__(output_path)
                 
         os.makedirs(output_path)
-        print("[*] Create directory {}".format(output_path))
+        logging.info("[*] Create directory {}".format(output_path))
 
         if not os.path.exists(download_path):
             # shutil.rmtree(download_path)
             os.makedirs(download_path)
-            print("[*] Create directory {}".format(download_path))
+            logging.info("[*] Create directory {}".format(download_path))
 
         if not os.path.exists(history_path):
             os.makedirs(history_path)
-            print("[*] Create directory {}".format(history_path))
+            logging.info("[*] Create directory {}".format(history_path))
         
         if os.path.exists(txt_result_path):
             os.remove(txt_result_path)

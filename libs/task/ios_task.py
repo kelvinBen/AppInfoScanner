@@ -31,32 +31,24 @@ class iOSTask(object):
         return {"shell_flag":self.shell_flag,"file_queue":self.file_queue,"comp_list":[],"packagename":None,"file_identifier":self.file_identifier}
 
     def __get_file_header__(self,file_path):
-        hex_hand = 0x0
+        crypt_load_command_hex = "2C000000"
         macho_name =  os.path.split(file_path)[-1]
         self.file_identifier.append(macho_name)
         with open(file_path,"rb") as macho_file:
-            macho_file.seek(hex_hand,0)
+            macho_file.seek(0x0,0)
             magic = binascii.hexlify(macho_file.read(4)).decode().upper()
             macho_magics =  ["CFFAEDFE","CEFAEDFE","BEBAFECA","CAFEBABE"]
             if magic in macho_magics:
-                self.__shell_test__(macho_file,hex_hand)
+                hex_str = binascii.hexlify(macho_file.read()).decode().upper()
+                if crypt_load_command_hex in hex_str:
+                    macho_file.seek(int(hex_str.index("2C000000")/2)+20,0)
+                    cryptid = binascii.hexlify(macho_file.read(4)).decode()
+                    if cryptid == "01000000":
+                        self.shell_flag = True
                 macho_file.close()
                 return True
             macho_file.close()
             return False
-                
-    
-    def __shell_test__(self,macho_file,hex_hand):
-        while True:
-            magic = binascii.hexlify(macho_file.read(4)).decode().upper()
-            if magic == "2C000000":
-                macho_file.seek(hex_hand,0)
-                encryption_info_command = binascii.hexlify(macho_file.read(24)).decode()
-                cryptid = encryption_info_command[-8:len(encryption_info_command)]
-                if cryptid == "01000000":
-                    self.shell_flag = True
-                break
-            hex_hand = hex_hand + 4            
 
     def __scanner_file_by_ipa__(self,output):   
         scanner_file_suffix = ["plist","js","xml","html"]
@@ -86,39 +78,18 @@ class iOSTask(object):
     def __decode_ipa__(self,output_path):
         with zipfile.ZipFile(self.path,"r") as zip_files:
             zip_file_names = zip_files.namelist()
-            zip_files.extract(zip_file_names[0],output_path)
-            try:
-                new_zip_file =  zip_file_names[0].encode('cp437').decode('utf-8')
-            except UnicodeEncodeError:
-                new_zip_file =  zip_file_names[0].encode('utf-8').decode('utf-8')
-            
-                old_zip_dir = self.__get_parse_dir__(output_path,zip_file_names[0])
-                new_zip_dir = self.__get_parse_dir__(output_path,new_zip_file)
-                os.rename(old_zip_dir,new_zip_dir)
-            
-            for zip_file in zip_file_names:
-                old_ext_path = zip_files.extract(zip_file,output_path)
-                start = str(old_ext_path).index("Payload")
-                dir_path = old_ext_path[start:len(old_ext_path)]
-                old_ext_path = os.path.join(output_path,dir_path)
+            for zip_file_name in zip_file_names:
                 try:
-                    new_zip_file = zip_file.encode('cp437').decode('utf-8')
+                    if platform.system() == "Windows":
+                        new_file_name = zip_file_name.encode('cp437').decode('GBK')
+                    else:
+                        new_file_name = zip_file_name.encode('cp437').decode('utf-8')
                 except UnicodeEncodeError:
-                    new_zip_file = zip_file.encode('utf-8').decode('utf-8')
-                
-                new_ext_path = os.path.join(output_path,new_zip_file)
+                    new_file_name = zip_file_name.encode('utf-8').decode('utf-8')
 
-                if platform.system() == "Windows":
-                    new_ext_path = new_ext_path.replace("/","\\")
-
-                if not os.path.exists(new_ext_path):
-                    dir_path = os.path.dirname(new_ext_path)
-                    if not os.path.exists(dir_path):
-                        os.makedirs(dir_path)
-                shutil.move(old_ext_path, new_ext_path)
-                if os.path.exists(old_ext_path):
-                    os.remove(old_ext_path)
-
+                new_ext_file_path = os.path.join(output_path,new_file_name)
+                ext_file_path  = zip_files.extract(zip_file_name,output_path)
+                os.rename(ext_file_path,new_ext_file_path)
 
     def __get_parse_dir__(self,output_path,file_path):
         start = file_path.index("Payload/")

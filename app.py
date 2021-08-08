@@ -4,6 +4,7 @@
 # Github: https://github.com/kelvinBen/AppInfoScanner
 
 import click
+import logging
 
 from libs.core import Bootstrapper
 from libs.task.base_task import BaseTask
@@ -66,6 +67,11 @@ def web(inputs: str, rules: str, sniffer: bool, no_resource:bool, all:bool, thre
         raise e
 
 def main():
+    LOG_FORMAT = "%(levelname)s - %(message)s"    # 日志格式化输出
+    DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"                        # 日期格式
+    fp = logging.FileHandler('info.log', encoding='utf-8')
+    fs = logging.StreamHandler()
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT, handlers=[fp, fs])    # 调用
     cli()
 
 if __name__ == "__main__":

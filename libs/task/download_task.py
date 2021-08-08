@@ -37,10 +37,10 @@ class DownloadTask(object):
             else: # 目录处理
                 return {"path":path,"type":types}
         else:
-            print("[*] Detected that the task is not local, preparing to download file......")
+            logging.info("[*] Detected that the task is not local, preparing to download file......")
             cache_path = os.path.join(cores.download_path, file_name)            
             thread = DownloadThreads(path,file_name,cache_path,types)
             thread.start()
             thread.join()
-            print()
+            logging.info()
             return {"path":cache_path,"type":types}

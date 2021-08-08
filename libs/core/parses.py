@@ -6,6 +6,7 @@
 import re
 import os
 import config
+import logging
 import threading
 import libs.core as cores
 
@@ -59,7 +60,7 @@ class ParsesThreads(threading.Thread):
                 akAndSkList = re.compile(r'.*accessKeyId.*".*"|.*accessKeySecret.*".*"|.*secret.*".*"').findall(file_content)
                 for akAndSk in akAndSkList:
                     self.result_list.append(akAndSk.strip())
-                    print("[+] AK or SK in:",akAndSk.strip())
+                    logging.info("[+] AK or SK in:",akAndSk.strip())
 
             # 遍历所有的字符串
             for result in set(results): 
@@ -80,7 +81,7 @@ class ParsesThreads(threading.Thread):
 
                 self.threadLock.acquire()
                 if cores.all_flag:
-                    print("[+] The string searched for matching rule is: %s" % (resl_str))
+                    logging.info("[+] The string searched for matching rule is: %s" % (resl_str))
                 self.result_list.append(resl_str)
                 self.threadLock.release()
             continue

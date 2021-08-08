@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import config
+import logging
 import requests
 import threading
 import libs.core as cores
@@ -40,7 +41,6 @@ class DownloadThreads(threading.Thread):
                 if self.types == "Android" or self.types == "iOS":
                     count = 0
                     progress_tmp = 0
-                    time1 = time.time()
                     length = float(resp.headers['content-length'])
                     with open(self.cache_path, "wb") as f:
                         for chunk in resp.iter_content(chunk_size = 512):
@@ -50,8 +50,8 @@ class DownloadThreads(threading.Thread):
                                 progress = int(count / length * 100)
                                 if progress != progress_tmp:
                                     progress_tmp = progress
-                                    print("\r", end="")
-                                    print("[*] Download progress: {}%: ".format(progress), "▋" * (progress // 2), end="")
+                                    logging.info("\r", end="")
+                                    logging.info("[*] Download progress: {}%: ".format(progress), "▋" * (progress // 2), end="")
                                     sys.stdout.flush()
                         f.close()
                 else:
@@ -62,7 +62,6 @@ class DownloadThreads(threading.Thread):
                 cores.download_flag = True
         except Exception as e:
             raise Exception(e)
-            return
 
     def run(self):
         threadLock = threading.Lock()

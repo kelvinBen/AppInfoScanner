@@ -4,6 +4,7 @@
 # Github: https://github.com/kelvinBen/AppInfoScanner
 import re
 import time
+import logging
 import threading
 import requests
 import libs.core as cores
@@ -27,7 +28,7 @@ class NetThreads(threading.Thread):
             url_ip = domains["url_ip"]
             time.sleep(2)
             result = self.__get_request_result__(url_ip)
-            print("[+] Processing URL address："+url_ip)
+            logging.info("[+] Processing URL address："+url_ip)
             if result != "error":
                 if self.lock.acquire(True):
                     cores.excel_row = cores.excel_row + 1

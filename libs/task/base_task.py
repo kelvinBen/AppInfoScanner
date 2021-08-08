@@ -5,6 +5,7 @@
 import os
 import re
 import config
+import logging
 import threading
 from queue import Queue
 import libs.core as cores
@@ -35,12 +36,12 @@ class BaseTask(object):
     # 统一调度平台
     def start(self):
     
-        print("[*] AI is analyzing filtering rules......")
+        logging.info("[*] AI is analyzing filtering rules......")
 
         # 获取历史记录
         self.__history_handle__()
 
-        print("[*] The filtering rules obtained by AI are as follows: %s" % (set(config.filter_no)) )
+        logging.info("[*] The filtering rules obtained by AI are as follows: %s" % (set(config.filter_no)) )
 
         # 任务控制中心
         task_info = self.__tast_control__()
@@ -54,11 +55,11 @@ class BaseTask(object):
         file_identifier = task_info["file_identifier"]
         
         if shell_flag:
-            print('[-] \033[3;31m Error: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
+            logging.info('[-] \033[3;31m Error: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
             return
 
         # 线程控制中心
-        print("[*] =========  Searching for strings that match the rules ===============")
+        logging.info("[*] =========  Searching for strings that match the rules ===============")
         self.__threads_control__(file_queue)
 
         # 等待线程结束
@@ -77,7 +78,7 @@ class BaseTask(object):
         types = cache_info["type"]
         
         if (not os.path.exists(cacar_path) and cores.download_flag):
-            print("[-] File download failed! Please download the file manually and try again.")
+            logging.info("[-] File download failed! Please download the file manually and try again.")
             return task_info
 
         # 调用Android 相关处理逻辑
@@ -104,17 +105,17 @@ class BaseTask(object):
         all_flag = cores.all_flag
                 
         if self.sniffer:
-            print("[*] ========= Sniffing the URL address of the search ===============")
+            logging.info("[*] ========= Sniffing the URL address of the search ===============")
             NetTask(self.result_dict,self.app_history_list,self.domain_history_list,file_identifier,self.threads).start()
             
         if packagename: 
-            print("[*] =========  The package name of this APP is: ===============")
-            print(packagename)
+            logging.info("[*] =========  The package name of this APP is: ===============")
+            logging.info(packagename)
 
         if len(comp_list) != 0:
-            print("[*] ========= Component information is as follows :===============")
+            logging.info("[*] ========= Component information is as follows :===============")
             for json in comp_list:
-                print(json)
+                logging.info(json)
         
         if all_flag:
             value_list = []
@@ -127,10 +128,10 @@ class BaseTask(object):
                         value_list.append(result)
                         f.write("\t"+result+"\r")
                 f.close()
-            print("[*] For more information about the search, see TXT file result: %s" %(txt_result_path))
+            logging.info("[*] For more information about the search, see TXT file result: %s" %(txt_result_path))
 
         if self.sniffer:
-            print("[*] For more information about the search, see XLS file result: %s" %(xls_result_path))
+            logging.info("[*] For more information about the search, see XLS file result: %s" %(xls_result_path))
 
     def __history_handle__(self):
         domain_history_path =  cores.domain_history_path
