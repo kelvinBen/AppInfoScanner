@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
@@ -13,6 +14,7 @@ class WebTask(object):
     def __init__(self, path):
         self.path = path
         self.file_queue = Queue()
+        self.file_identifier = []
 
     def start(self):
         if len(config.web_file_suffix) <=0:
@@ -26,7 +28,7 @@ class WebTask(object):
                 err_info = ("Retrieval of this file type is not supported. Select a file or directory with a suffix of %s" % ",".join(scanner_file_suffix))
                 raise Exception(err_info)
             self.file_queue.put(self.path)
-        return {"comp_list":[],"shell_flag":False,"file_queue":self.file_queue,"packagename":None}
+        return {"comp_list":[],"shell_flag":False,"file_queue":self.file_queue,"packagename":None,"file_identifier":self.file_identifier}
 
     def __get_scanner_file__(self,scanner_dir,file_suffix):
         dir_or_files = os.listdir(scanner_dir)

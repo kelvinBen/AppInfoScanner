@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
@@ -55,53 +56,45 @@ class NetTask(object):
         txt_result_path = cores.txt_result_path
         append_file_flag = True
         
-        with open(txt_result_path,"a+",encoding='utf-8',errors='ignore') as f:
-            for key,value in self.result_dict.items():
-                if cores.all_flag:
-                    f.write(key+"\r")
-                    
-                for result in value:
-                    if result in self.value_list:
+        for key,value in self.result_dict.items():
+            for result in value:
+                if result in self.value_list:
+                    continue
+                self.value_list.append(result)
+
+                if (("http://" in result) or ("https://" in result)) and ("." in result):
+                    domain = result.replace("https://","").replace("http://","")
+                        
+                    if "{" in result or "}" in result or "[" in result or "]" in result or "\\" in result or "!" in result or "," in result:
                         continue
-                    self.value_list.append(result)
-                    if cores.all_flag:
-                        f.write("\t"+result+"\r")
 
-                    if (("http://" in result) or ("https://" in result)) and ("." in result):
-                        domain = result.replace("https://","").replace("http://","")
+                    if "/" in domain:
+                        domain = domain[:domain.index("/")]
                         
-                        if "{" in result or "}" in result or "[" in result or "]" in result or "\\" in result or "!" in result or "," in result:
-                            continue
-
-                        if "/" in domain:
-                            domain = domain[:domain.index("/")]
+                    if "|" in result:
+                        result = result[:result.index("|")]
+                    # 目前流通的域名中加上协议头最短长度为11位
+                    if len(result) <= 10:
+                        continue
                         
-                        if "|" in result:
-                            result = result[:result.index("|")]
-                        # 目前流通的域名中加上协议头最短长度为11位
-                        if len(result) <= 10:
-                            continue
+                    url_suffix = result[result.rindex(".")+1:].lower()
+                    if not(cores.resource_flag and url_suffix in config.sniffer_filter):
+                        self.domain_queue.put({"domain":domain,"url_ip":result})
                         
-                        url_suffix = result[result.rindex(".")+1:].lower()
-                        if not(cores.resource_flag and url_suffix in config.sniffer_filter):
-                            self.domain_queue.put({"domain":domain,"url_ip":result})
-                        
-                        for identifier in self.file_identifier:
-                            if identifier in self.app_history_list:
-                                if not(domain in self.domain_history_list): 
-                                    self.domain_list.append(domain)
-                                    self.__write_content_in_file__(cores.domain_history_path,domain)
-                                continue
-
-                            if not(domain in self.domain_list):
+                    for identifier in self.file_identifier:
+                        if identifier in self.app_history_list:
+                            if not(domain in self.domain_history_list): 
                                 self.domain_list.append(domain)
                                 self.__write_content_in_file__(cores.domain_history_path,domain)
+                            continue
 
-                            if append_file_flag:
-                                self.__write_content_in_file__(cores.app_history_path,identifier)
-                                append_file_flag = False
-                    
-            f.close()
+                        if not(domain in self.domain_list):
+                            self.domain_list.append(domain)
+                            self.__write_content_in_file__(cores.domain_history_path,domain)
+
+                        if append_file_flag:
+                            self.__write_content_in_file__(cores.app_history_path,identifier)
+                            append_file_flag = False
 
     def __start_threads__(self,worksheet):
         for threadID in range(0,self.threads) : 

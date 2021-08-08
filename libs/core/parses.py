@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
@@ -26,22 +27,20 @@ class ParsesThreads(threading.Thread):
             
             file_path = self.file_queue.get(timeout = 5)
             scan_str = ("[+] Scan file : %s" % file_path)
-            print(scan_str)
-
             if self.types == "iOS":
                 self.__get_string_by_iOS__(file_path)
             else:
                 self.__get_string_by_file__(file_path)
             
-            result_set =  set(self.result_list)
-            if len(result_set) !=0:
+            result_set = set(self.result_list)
+            if len(result_set) != 0:
                 self.result_dict[file_path] = result_set
 
     def __get_string_by_iOS__(self,file_path):
         output_path = cores.output_path
         strings_path = cores.strings_path
         temp =  os.path.join(output_path,"temp.txt")
-        cmd_str = ("%s %s > %s") % (strings_path,file_path,temp)
+        cmd_str = ('"%s" "%s" > "%s"') % (str(strings_path),str(file_path),str(temp))
         if os.system(cmd_str) == 0:
             with open(temp,"r",encoding='utf-8',errors='ignore') as f:
                 lines = f.readlines()
@@ -55,6 +54,13 @@ class ParsesThreads(threading.Thread):
             pattern = re.compile(r'\"(.*?)\"') 
             results = pattern.findall(file_content)
 
+            # 搜素AK和SK信息
+            if not ".js" == file_path[-3:]:
+                akAndSkList = re.compile(r'.*accessKeyId.*".*"|.*accessKeySecret.*".*"|.*secret.*".*"').findall(file_content)
+                for akAndSk in akAndSkList:
+                    self.result_list.append(akAndSk.strip())
+                    print("[+] AK or SK in:",akAndSk.strip())
+
             # 遍历所有的字符串
             for result in set(results): 
                 self.__parse_string__(result)    
@@ -64,7 +70,6 @@ class ParsesThreads(threading.Thread):
         for filter_str in config.filter_strs:
             filter_str_pat = re.compile(filter_str) 
             filter_resl = filter_str_pat.findall(result)
-
             # 过滤掉未搜索到的内容
             if len(filter_resl)!=0:
                 # 提取第一个结果

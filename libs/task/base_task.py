@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
@@ -100,6 +101,7 @@ class BaseTask(object):
     def __print_control__(self,packagename,comp_list,file_identifier):
         txt_result_path = cores.txt_result_path
         xls_result_path = cores.xls_result_path
+        all_flag = cores.all_flag
                 
         if self.sniffer:
             print("[*] ========= Sniffing the URL address of the search ===============")
@@ -114,11 +116,21 @@ class BaseTask(object):
             for json in comp_list:
                 print(json)
         
-        if cores.all_flag:
-            print("[*] For more information about the search, see TXT file result: %s" %(cores.txt_result_path))
+        if all_flag:
+            value_list = []
+            with open(txt_result_path,"a+",encoding='utf-8',errors='ignore') as f:
+                for key,value in self.result_dict.items():
+                    f.write(key+"\r")
+                    for result in value:
+                        if result in value_list:
+                            continue
+                        value_list.append(result)
+                        f.write("\t"+result+"\r")
+                f.close()
+            print("[*] For more information about the search, see TXT file result: %s" %(txt_result_path))
 
         if self.sniffer:
-            print("[*] For more information about the search, see XLS file result: %s" %(cores.xls_result_path))
+            print("[*] For more information about the search, see XLS file result: %s" %(xls_result_path))
 
     def __history_handle__(self):
         domain_history_path =  cores.domain_history_path

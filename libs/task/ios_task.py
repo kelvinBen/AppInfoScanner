@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
@@ -9,7 +10,6 @@ import binascii
 import platform
 import libs.core as cores
 from queue import Queue
-
 
 class iOSTask(object):
     elf_file_name = ""
@@ -87,7 +87,6 @@ class iOSTask(object):
         with zipfile.ZipFile(self.path,"r") as zip_files:
             zip_file_names = zip_files.namelist()
             zip_files.extract(zip_file_names[0],output_path)
-            
             try:
                 new_zip_file =  zip_file_names[0].encode('cp437').decode('utf-8')
             except UnicodeEncodeError:
@@ -96,8 +95,8 @@ class iOSTask(object):
                 old_zip_dir = self.__get_parse_dir__(output_path,zip_file_names[0])
                 new_zip_dir = self.__get_parse_dir__(output_path,new_zip_file)
                 os.rename(old_zip_dir,new_zip_dir)
+            
             for zip_file in zip_file_names:
-               
                 old_ext_path = zip_files.extract(zip_file,output_path)
                 start = str(old_ext_path).index("Payload")
                 dir_path = old_ext_path[start:len(old_ext_path)]
@@ -105,7 +104,7 @@ class iOSTask(object):
                 try:
                     new_zip_file = zip_file.encode('cp437').decode('utf-8')
                 except UnicodeEncodeError:
-                   new_zip_file = zip_file.encode('utf-8').decode('utf-8')
+                    new_zip_file = zip_file.encode('utf-8').decode('utf-8')
                 
                 new_ext_path = os.path.join(output_path,new_zip_file)
 
@@ -117,6 +116,8 @@ class iOSTask(object):
                     if not os.path.exists(dir_path):
                         os.makedirs(dir_path)
                 shutil.move(old_ext_path, new_ext_path)
+                if os.path.exists(old_ext_path):
+                    os.remove(old_ext_path)
 
 
     def __get_parse_dir__(self,output_path,file_path):
