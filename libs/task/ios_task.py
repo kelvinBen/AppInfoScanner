@@ -3,8 +3,6 @@
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
 import os
-import re
-import shutil
 import zipfile
 import binascii
 import platform
@@ -23,13 +21,12 @@ class iOSTask(object):
         file_path = self.path
         if file_path.split(".")[-1] == 'ipa':
             self.__decode_ipa__(cores.output_path)
-            self.__scanner_file_by_ipa__(cores.output_path)
         elif self.__get_file_header__(file_path): 
             self.file_queue.put(file_path)
         else:
             raise Exception("Retrieval of this file type is not supported. Select IPA file or Mach-o file.")
         return {"shell_flag":self.shell_flag,"file_queue":self.file_queue,"comp_list":[],"packagename":None,"file_identifier":self.file_identifier}
-
+                    
     def __get_file_header__(self,file_path):
         crypt_load_command_hex = "2C000000"
         macho_name =  os.path.split(file_path)[-1]
@@ -49,11 +46,6 @@ class iOSTask(object):
                 return True
             macho_file.close()
             return False
-
-    def __scanner_file_by_ipa__(self,output):   
-        scanner_file_suffix = ["plist","js","xml","html"]
-        scanner_dir =  os.path.join(output,"Payload")
-        self.__get_scanner_file__(scanner_dir,scanner_file_suffix)
 
     def __get_scanner_file__(self,scanner_dir,file_suffix):
         dir_or_files = os.listdir(scanner_dir)
@@ -76,6 +68,9 @@ class iOSTask(object):
                             self.file_queue.put(dir_file_path)
 
     def __decode_ipa__(self,output_path):
+        scanner_file_suffix = ["plist","js","xml","html"]
+        scanner_dir =  os.path.join(output_path,"Payload")
+
         with zipfile.ZipFile(self.path,"r") as zip_files:
             zip_file_names = zip_files.namelist()
             for zip_file_name in zip_file_names:
@@ -90,6 +85,7 @@ class iOSTask(object):
                 new_ext_file_path = os.path.join(output_path,new_file_name)
                 ext_file_path  = zip_files.extract(zip_file_name,output_path)
                 os.rename(ext_file_path,new_ext_file_path)
+        self.__get_scanner_file__(scanner_dir,scanner_file_suffix)
 
     def __get_parse_dir__(self,output_path,file_path):
         start = file_path.index("Payload/")

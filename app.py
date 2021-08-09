@@ -11,7 +11,13 @@ from libs.task.base_task import BaseTask
 
 @click.group(help="Python script for automatically retrieving key information in app.")
 def cli():
-    pass
+    try:
+        LOG_FORMAT = "%(message)s"    # 日志格式化输出
+        fp = logging.FileHandler('info.log', mode='w',encoding='utf-8')
+        fs = logging.StreamHandler()
+        logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, handlers=[fp, fs])    # 调用
+    except Exception as e:
+        logging.error("{}".format(e))
 
 # 创建Android任务
 @cli.command(help="Get the key information of Android system.")
@@ -24,13 +30,13 @@ def cli():
 @click.option("-o", '--output',required=False, type=str,default=None,help="Specify the result set output directory.")
 @click.option("-p", '--package',required=False,type=str,default="",help="Specifies the package name information that needs to be scanned.")
 def android(inputs: str, rules: str, sniffer: bool, no_resource:bool, all:bool, threads:int, output, package:str) -> None:
-    try:
-        bootstrapper = Bootstrapper(__file__, output, all, no_resource)
-        bootstrapper.init()
+    
+    
+    bootstrapper = Bootstrapper(rules, sniffer, threads, all ,no_resource)
+    bootstrapper.init_dir(__file__, output)
 
-        BaseTask("Android", inputs, rules, sniffer, threads, package).start()
-    except Exception as e:
-        raise e
+    BaseTask().start("Android", inputs, package)
+
 
 @cli.command(help="Get the key information of iOS system.")
 @click.option("-i", "--inputs", required=True, type=str, help="Please enter IPA file or ELF file to scan or corresponding IPA download address. App store is not supported at present.")
@@ -41,13 +47,12 @@ def android(inputs: str, rules: str, sniffer: bool, no_resource:bool, all:bool, 
 @click.option("-t", '--threads',required=False, type=int,default=10,help="Set the number of concurrency. The larger the concurrency, the faster the speed. The default value is 10.")
 @click.option("-o", '--output',required=False, type=str,default=None,help="Specify the result set output directory.")
 def ios(inputs: str, rules: str, sniffer: bool, no_resource:bool, all:bool, threads:int, output:str) -> None:
-    try:
-        bootstrapper = Bootstrapper(__file__, output, all, no_resource)
-        bootstrapper.init()
+    
 
-        BaseTask("iOS", inputs, rules, sniffer, threads).start()
-    except Exception as e:
-        raise e
+    
+    bootstrapper = Bootstrapper(rules, sniffer, threads, all ,no_resource)
+    bootstrapper.init_dir(__file__, output)
+    BaseTask().start("iOS", inputs)
 
 @cli.command(help="Get the key information of Web system.")
 @click.option("-i", "--inputs", required=True, type=str, help="Please enter the site directory or site file to scan or the corresponding site download address.")
@@ -58,20 +63,14 @@ def ios(inputs: str, rules: str, sniffer: bool, no_resource:bool, all:bool, thre
 @click.option("-t", '--threads',required=False, type=int,default=10,help="Set the number of concurrency. The larger the concurrency, the faster the speed. The default value is 10.")
 @click.option("-o", '--output',required=False, type=str,default=None,help="Specify the result set output directory.")
 def web(inputs: str, rules: str, sniffer: bool, no_resource:bool, all:bool, threads:int, output:str) -> None:
-    try:
-        bootstrapper = Bootstrapper(__file__, output, all, no_resource)
-        bootstrapper.init()
+    
 
-        BaseTask("Web", inputs, rules, sniffer, threads).start()
-    except Exception as e:
-        raise e
+    bootstrapper = Bootstrapper(rules, sniffer, threads, all ,no_resource)
+    bootstrapper.init_dir(__file__, output)
+    BaseTask().start("Web", inputs)
 
 def main():
-    LOG_FORMAT = "%(levelname)s - %(message)s"    # 日志格式化输出
-    DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"                        # 日期格式
-    fp = logging.FileHandler('info.log', encoding='utf-8')
-    fs = logging.StreamHandler()
-    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT, handlers=[fp, fs])    # 调用
+
     cli()
 
 if __name__ == "__main__":

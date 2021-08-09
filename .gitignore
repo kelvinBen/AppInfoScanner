@@ -114,3 +114,7 @@ venv.bak/
 
 # add
 .idea/
+
+#
+1.py
+.vscode/

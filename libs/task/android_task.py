@@ -38,8 +38,6 @@ class AndroidTask(object):
         return {"comp_list":self.comp_list,"shell_flag":self.shell_flag,"file_queue":self.file_queue,"packagename":self.packagename,"file_identifier":self.file_identifier}
 
     def __decode_file__(self,file_path):
-        apktool_path = str(cores.apktool_path)
-        backsmali_path = str(cores.backsmali_path)
         base_out_path = str(cores.output_path)
         filename =  os.path.basename(file_path)
         suffix_name = filename.split(".")[-1]
@@ -47,7 +45,7 @@ class AndroidTask(object):
         if suffix_name == "apk":
             name = filename.split(".")[0]
             output_path = os.path.join(base_out_path,name)
-            self.__decode_apk__(file_path,apktool_path,output_path)
+            self.__decode_apk__(file_path,output_path)
         elif suffix_name == "dex":
             f = open(file_path,'rb')
             md5_obj = hashlib.md5()
@@ -61,7 +59,7 @@ class AndroidTask(object):
             output_path = os.path.join(base_out_path,dex_md5)
             if not os.path.exists(output_path):
                 os.makedirs(output_path)
-            self.__decode_dex__(file_path,backsmali_path,output_path)
+            self.__decode_dex__(file_path,output_path)
         else:
             return "error"
     
@@ -76,23 +74,25 @@ class AndroidTask(object):
                     continue
 
     # 分解apk
-    def __decode_apk__(self,file_path,apktool_path,output_path):
-        cmd_str = ('java -jar "%s" d -f "%s" -o "%s" --only-main-classe') % (str(apktool_path),str(file_path),str(output_path))
+    def __decode_apk__(self,file_path,output_path):
+        cmd_str = ('java -jar "%s" d -f "%s" -o "%s" --only-main-classe') % (cores.apktool_file,str(file_path),str(output_path))
+        logging.debug("[*] cmd {}".format(cmd_str))
         if os.system(cmd_str) == 0:
             self.__shell_test__(output_path)
             self.__scanner_file_by_apktool__(output_path)
         else:
-            logging.info("[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+            logging.error("[x] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
             raise Exception(file_path + ", Decompilation failed.")
                 
 
     # 分解dex
-    def __decode_dex__(self,file_path,backsmali_path,output_path):
-        cmd_str = ('java -jar "%s" d "%s"') % (str(backsmali_path),str(file_path))
+    def __decode_dex__(self,file_path,output_path):
+        cmd_str = ('java -jar "%s" d "%s"') % (cores.backsmali_file,str(file_path))
+        logging.debug("[*] cmd {}".format(cmd_str))
         if os.system(cmd_str) == 0:
             self.__get_scanner_file__(output_path)
         else:
-            logging.info("[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+            logging.error("[x] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
             raise Exception(file_path + ", Decompilation failed.")
     
 

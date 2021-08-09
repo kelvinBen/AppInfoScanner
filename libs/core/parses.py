@@ -81,7 +81,7 @@ class ParsesThreads(threading.Thread):
 
                 self.threadLock.acquire()
                 if cores.all_flag:
-                    logging.info("[+] The string searched for matching rule is: %s" % (resl_str))
+                    logging.info("[+] String : {}".format(resl_str))
                 self.result_list.append(resl_str)
                 self.threadLock.release()
             continue

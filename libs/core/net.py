@@ -28,20 +28,22 @@ class NetThreads(threading.Thread):
             url_ip = domains["url_ip"]
             time.sleep(2)
             result = self.__get_request_result__(url_ip)
-            logging.info("[+] Processing URL address："+url_ip)
+            logging.info("[+] " + url_ip)
             if result != "error":
                 if self.lock.acquire(True):
                     cores.excel_row = cores.excel_row + 1
-                    self.worksheet.write(cores.excel_row, 0, label = cores.excel_row)
-                    self.worksheet.write(cores.excel_row, 1, label = url_ip)
-                    self.worksheet.write(cores.excel_row, 2, label = domain)
+                    self.worksheet.cell(row=cores.excel_row, column=1).value = cores.excel_row
+                    self.worksheet.cell(row=cores.excel_row, column=2).value = url_ip
+                    self.worksheet.cell(row=cores.excel_row, column=3).value = domain
+
                     if result != "timeout":
-                        self.worksheet.write(cores.excel_row, 3, label = result["status"])
-                        self.worksheet.write(cores.excel_row, 4, label = result["des_ip"])
-                        self.worksheet.write(cores.excel_row, 5, label = result["server"])
-                        self.worksheet.write(cores.excel_row, 6, label = result["title"])
-                        self.worksheet.write(cores.excel_row, 7, label = result["cdn"])
-                        # self.worksheet.write(cores.excel_row, 8, label = "")
+                        self.worksheet.cell(row=cores.excel_row, column=4).value = result["status"]
+                        self.worksheet.cell(row=cores.excel_row, column=5).value = result["des_ip"]
+                        self.worksheet.cell(row=cores.excel_row, column=6).value = result["server"]
+                        self.worksheet.cell(row=cores.excel_row, column=7).value = result["title"]
+                        self.worksheet.cell(row=cores.excel_row, column=8).value = result["cdn"]
+                        self.worksheet.cell(row=cores.excel_row, column=9).value = ""
+                        
                     self.lock.release()
             
     def __get_request_result__(self,url):

@@ -2,32 +2,29 @@
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
-
-import re
-import xlwt
-import socket
 import config
 from queue import Queue
 import libs.core as cores
+from openpyxl import Workbook
 from libs.core.net import NetThreads
 
-import requests
 class NetTask(object):
     value_list = []
     domain_list=[]
     
-    def __init__(self,result_dict,app_history_list,domain_history_list,file_identifier,threads):
+    def __init__(self,result_dict,app_history_list,domain_history_list,file_identifier):
         self.result_dict = result_dict
         self.app_history_list = app_history_list
-        self.file_identifier = file_identifier
-        self.domain_queue = Queue()
-        self.threads = int(threads) 
-        self.thread_list = []
         self.domain_history_list = domain_history_list
+        self.file_identifier = file_identifier
+        
+        self.domain_queue = Queue()
+        self.thread_list = []
+
 
     def start(self):
         xls_result_path = cores.xls_result_path
-        workbook = xlwt.Workbook(encoding = 'utf-8')
+        workbook = Workbook()
         worksheet = self.__creating_excel_header__(workbook)
         
         self.__write_result_to_txt__()
@@ -40,17 +37,12 @@ class NetTask(object):
         workbook.save(xls_result_path)
 
     def __creating_excel_header__(self,workbook):
-        worksheet = workbook.add_sheet("Result",cell_overwrite_ok=True)
-        worksheet.write(0,0, label = "Number")
-        worksheet.write(0,1, label = "IP/URL")
-        worksheet.write(0,2, label = "Domain")
-        worksheet.write(0,3, label = "Status")
-        worksheet.write(0,4, label = "IP")
-        worksheet.write(0,5, label = "Server")
-        worksheet.write(0,6, label = "Title")
-        worksheet.write(0,7, label = "CDN")
-        # worksheet.write(0,8, label = "Finger")
-        return worksheet 
+        worksheet = workbook.create_sheet("Result",0)
+        excel_headers = ["Number","IP/URL","Domain","Status","IP","Server","Title","CDN","Finger"] 
+        for head_cell in excel_headers:
+            column = excel_headers.index(head_cell) + 1
+            worksheet.cell(row=1, column=column).value = head_cell
+        return worksheet
         
     def __write_result_to_txt__(self):
         txt_result_path = cores.txt_result_path
@@ -97,7 +89,7 @@ class NetTask(object):
                             append_file_flag = False
 
     def __start_threads__(self,worksheet):
-        for threadID in range(0,self.threads) : 
+        for threadID in range(0, cores.threads_num): 
             name = "Thread - " + str(threadID)
             thread =  NetThreads(threadID,name,self.domain_queue,worksheet)
             thread.start()

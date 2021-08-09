@@ -1,3 +1,5 @@
 requests
 click
 xlwt
+pillow
+openpyxl
