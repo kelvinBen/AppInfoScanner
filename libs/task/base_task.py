@@ -14,7 +14,7 @@ from libs.task.web_task import WebTask
 from libs.task.net_task import NetTask
 from libs.core.parses import ParsesThreads
 from libs.task.android_task import AndroidTask
-from libs.task.download_task import DownloadTask
+from libs.core.download import DownloadThreads
 
 class BaseTask(object):
 
@@ -22,7 +22,10 @@ class BaseTask(object):
         if cores.user_add_rules:
             config.filter_strs.append(r'.*'+str(cores.user_add_rules)+'.*')
         self.file_queue = Queue()
-        self.file_path_list = []
+        # 文件下载队列
+        self.download_file_queue = Queue()
+        # 文件下载列表
+        self.download_file_list = []
         self.thread_list = []
         self.app_history_list= []
         self.domain_history_list = []
@@ -30,28 +33,48 @@ class BaseTask(object):
         
     # 统一启动
     def start(self, types="Android", user_input_path="", package=""):
-        # 如果输入路径为目录，则自动检索DEX、IPA、APK等文件
+        # 如果输入路径为目录,且类型非web,则自动检索DEX、IPA、APK等文件
         if not(types == "Web") and os.path.isdir(user_input_path):
-            self.__scanner_specified_file__(self.file_path_list, user_input_path)
-        # 如果输入的路径为txt, 则加载txt中的内容
+            self.__scanner_specified_file__(user_input_path)
+        
+        # 如果输入的路径为txt, 则加载txt中的内容实现批量操作
         elif user_input_path.endswith("txt"):
             with open(user_input_path) as f:
                 lines = f.readlines()
                 for line in lines:
-                    if line.startswith("http://") or line.startswith("https://") or line.endswith("apk") or line.endswith(".dex") or line.endswith("ipa"):
-                        self.file_path_list.append(line)
+                    # http:// 或者 https:// 开头 或者 apk/dex/ipa结尾的文件且文件存在
+                    if (line.startswith("http://") or line.startswith("https://")) or ((line.endswith("apk") or line.endswith(".dex") or line.endswith("ipa")) and os.path.exists(line)):
+                        self.download_file_queue.put(line)
                 f.close()
         else:
-            # 如果是文件则追加到文件列表中
-            self.file_path_list.append(user_input_path)
+            # 如果是文件或者类型为web的目录
+            self.download_file_queue.put(user_input_path)
 
         # 长度小于1需重新选择目录
-        if len(self.file_path_list) < 1:
+        if self.download_file_queue.qsize() < 1:
             raise Exception('[x] The specified DEX, IPA and APK files are not found. Please re-enter the directory to be scanned!') 
+
+        # 统一文件下载中心
+        self.__download_file_center__(types)
         
-        # 遍历目录
-        for file_path in self.file_path_list:
+        for download_file in self.download_file_list:
+            file_path = download_file["path"]
+            types = download_file["type"]
             self.__control_center__(file_path,types)
+
+    # 统一文件下载中心
+    def __download_file_center__(self,types):
+        # 杜绝资源浪费
+        if self.download_file_queue.qsize() < cores.threads_num:
+            threads_num = self.download_file_queue.qsize()
+        else:
+            threads_num = cores.threads_num
+
+        for threadID in range(1, threads_num): 
+            threadName = "Thread - " + str(int(threadID))
+            thread = DownloadThreads(threadID, threadName, self.download_file_queue, self.download_file_list, types)
+            thread.start()
+            thread.join()
 
     # 控制中心
     def __control_center__(self,file_path,types):
@@ -62,8 +85,7 @@ class BaseTask(object):
         self.__history_handle__()
         logging.info("[*] The filtering rules obtained by AI are as follows: {}".format(set(config.filter_no)))
 
-        # AI 修正扫描类型
-        cache_info = DownloadTask().start(file_path, types)
+  
         cacar_path = cache_info["path"]
         types = cache_info["type"]
 
@@ -187,12 +209,12 @@ class BaseTask(object):
                 f.close()
     
     # 扫描指定后缀文件
-    def __scanner_specified_file__(self, file_list, root_dir, file_suffix=['dex','ipa','apk']):
-        dir_or_files = os.listdir(root_dir)
-        for dir_or_file in dir_or_files:
-            dir_or_file_path = os.path.join(root_dir,dir_or_file) 
+    def __scanner_specified_file__(self, base_dir, file_suffix=['dex','ipa','apk']):
+        files = os.listdir(base_dir)
+        for file in files:
+            dir_or_file_path = os.path.join(base_dir,file) 
             if os.path.isdir(dir_or_file_path):
-                self.__scanner_specified_file__(file_list,dir_or_file_path,file_suffix)
+                self.__scanner_specified_file__(dir_or_file_path,file_suffix)
             else: 
                 if dir_or_file_path.split(".")[-1] in file_suffix:
-                    file_list.append(dir_or_file_path)
+                    self.download_file_queue.put(dir_or_file_path)
