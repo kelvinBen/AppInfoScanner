@@ -1,5 +1,6 @@
 result_*.txt
 result_*.xls
+result_*.xlsx
 download/
 history/
 out/
