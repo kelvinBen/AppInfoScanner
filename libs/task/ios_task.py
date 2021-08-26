@@ -117,7 +117,11 @@ class iOSTask(object):
                         os.makedirs(dir_path)
                 shutil.move(old_ext_path, new_ext_path)
                 if os.path.exists(old_ext_path):
-                    os.remove(old_ext_path)
+                    try:
+                        # mac发生权限问题的时候做处理
+                        os.remove(old_ext_path)
+                    except Exception:
+                        shutil.rmtree(old_ext_path)
 
 
     def __get_parse_dir__(self,output_path,file_path):

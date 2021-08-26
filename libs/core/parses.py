@@ -56,15 +56,24 @@ class ParsesThreads(threading.Thread):
 
             # 搜素AK和SK信息
             if not ".js" == file_path[-3:]:
-                akAndSkList = re.compile(r'.*accessKeyId.*".*"|.*accessKeySecret.*".*"|.*secret.*".*"').findall(file_content)
-                for akAndSk in akAndSkList:
-                    self.result_list.append(akAndSk.strip())
-                    print("[+] AK or SK in:",akAndSk.strip())
+                for key,values in config.filter_ak_map.items():
+                    if isinstance(values,list):
+                        for value in values:
+                            self.__ak_and_sk__(key, value, file_content)
+                    else:
+                       self.__ak_and_sk__(key, values, file_content)
 
             # 遍历所有的字符串
             for result in set(results): 
                 self.__parse_string__(result)    
-        
+    
+    def __ak_and_sk__(self, name, ak_rule,content):
+        akAndSkList = re.compile(ak_rule).findall(content)
+        for akAndSk in akAndSkList:
+            ak = ("[%s]-->:%s") % (name,akAndSk.strip())
+            self.result_list.append(ak)
+            print("[+] [%s] AK or SK in %s:") % (name, akAndSk.strip())
+
     def __parse_string__(self,result):
         # 通过正则筛选需要过滤的字符串
         for filter_str in config.filter_strs:
