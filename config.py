@@ -142,7 +142,11 @@ shell_list =[
 # 此处配置Android权限信息
 apk_permissions = [
     'android.permission.CAMERA',
-    'android.permission.READ_CONTACTS'
+    'android.permission.READ_CONTACTS',
+    'android.permission.READ_SMS',
+    'android.permission.READ_PROFILE',
+    'android.permission.READ_PHONE_STATE',
+    'android.permission.CONTROL_LOCATION_UPDATES'
 ]
 
 # 此处配置需要扫描的web文件后缀

@@ -54,8 +54,8 @@ class ParsesThreads(threading.Thread):
             pattern = re.compile(r'\"(.*?)\"') 
             results = pattern.findall(file_content)
 
-            # 搜素AK和SK信息
-            if not ".js" == file_path[-3:]:
+            # 搜素AK和SK信息,由于iOS的逻辑处理效率过慢暂时忽略对iOS的AK检测
+            if not (".js" == file_path[-3:] and self.types == "iOS"):
                 for key,values in config.filter_ak_map.items():
                     if isinstance(values,list):
                         for value in values:
