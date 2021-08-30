@@ -63,7 +63,7 @@ class Bootstrapper(object):
 
         user_add_rules = rules
         threads_num = threads
-        net_sniffer_flag = sniffer
+        net_sniffer_flag = not sniffer
         all_string_out = all 
         no_resource_flag = no_resource
 

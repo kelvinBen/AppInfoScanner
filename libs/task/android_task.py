@@ -13,14 +13,14 @@ import libs.core as cores
 
 class AndroidTask(object):
 
-    def __init__(self,path,package):
-        self.path = path
+    def __init__(self, file_path, package):
+        self.input_file_path = file_path
         self.package = package
         self.file_queue = Queue()
-        self.shell_flag=False
-        self.packagename=""
-        self.comp_list=[]
-        self.file_identifier=[]
+        self.shell_flag = False
+        self.packagename = ""
+        self.comp_list = []
+        self.file_identifier = []
         
     def start(self):
         # 检查java环境是否存在

@@ -39,9 +39,8 @@ class ParsesThreads(threading.Thread):
 
     def __get_string_by_iOS__(self,file_path):
         output_path = cores.output_path
-        strings_path = cores.strings_path
         temp =  os.path.join(output_path,"temp.txt")
-        cmd_str = ('"%s" "%s" > "%s"') % (str(strings_path),str(file_path),str(temp))
+        cmd_str = ('"%s" "%s" > "%s"') % (str(cores.strings_file),str(file_path),str(temp))
         if os.system(cmd_str) == 0:
             with open(temp,"r",encoding='utf-8',errors='ignore') as f:
                 lines = f.readlines()

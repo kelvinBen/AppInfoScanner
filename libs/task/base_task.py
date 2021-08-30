@@ -60,7 +60,8 @@ class BaseTask(object):
         for download_file in self.download_file_list:
             file_path = download_file["path"]
             types = download_file["type"]
-            self.__control_center__(file_path,types)
+            # 控制中心
+            self.__control_center__(file_path, types)
 
     # 统一文件下载中心
     def __download_file_center__(self,types):
@@ -77,7 +78,7 @@ class BaseTask(object):
             thread.join()
 
     # 控制中心
-    def __control_center__(self,file_path,types):
+    def __control_center__(self, file_path, types):
         logging.info("[*] Processing {}".format(file_path))
         logging.info("[*] AI is analyzing filtering rules......")
         
@@ -85,60 +86,56 @@ class BaseTask(object):
         self.__history_handle__()
         logging.info("[*] The filtering rules obtained by AI are as follows: {}".format(set(config.filter_no)))
 
-  
-        cacar_path = cache_info["path"]
-        types = cache_info["type"]
-
         # 任务控制中心
-        task_info = self.__tast_control__(file_path)
+        task_info = self.__tast_control__(file_path, types)
         if len(task_info) < 1:
             return 
 
-            # 文件队列    
-            file_queue = task_info["file_queue"]
-            # 是否存在壳
-            shell_flag = task_info["shell_flag"]
-            # 组件列表(仅适用于Android)
-            comp_list = task_info["comp_list"]
-            # 报名信息(仅适用于Android)
-            packagename = task_info["packagename"]
-            # 文件标识符
-            file_identifier = task_info["file_identifier"]
+        # 文件队列    
+        file_queue = task_info["file_queue"]
+        # 是否存在壳
+        shell_flag = task_info["shell_flag"]
+        # 组件列表(仅适用于Android)
+        comp_list = task_info["comp_list"]
+        # 报名信息(仅适用于Android)
+        packagename = task_info["packagename"]
+        # 文件标识符
+        file_identifier = task_info["file_identifier"]
             
-            if shell_flag:
-                logging.error('[x] This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
-                continue
+        if shell_flag:
+            logging.error('[x] This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
+            return
 
-            # 线程控制中心
-            logging.info("[*] =========  Searching for strings that match the rules ===============")
-            self.__threads_control__(file_queue)
+        # 线程控制中心
+        logging.info("[*] =========  Searching for strings that match the rules ===============")
+        self.__threads_control__(file_queue)
 
-            # 等待线程结束
-            for thread in self.thread_list:
-                thread.join()
+        # 等待线程结束
+        for thread in self.thread_list:
+            thread.join()
         
-            # 结果输出中心
-            self.__print_control__(packagename,comp_list,file_identifier)
+        # 结果输出中心
+        self.__print_control__(packagename,comp_list,file_identifier)
 
 
     # 任务控制中心
-    def __tast_control__(self,user_input_path):
+    def __tast_control__(self, file_path, types):
         task_info = {}
-
         
-        if (not os.path.exists(cacar_path) and cores.download_flag):
-            logging.error("[x] File download failed! Please download the file manually and try again.")
+        # 通过网络下载的文件如果不存在就直接返回任务控制中心
+        if (not os.path.exists(file_path) and cores.download_flag):
+            logging.error("[x] {} download failed! Please download the file manually and try again.".format(file_path))
             return task_info
 
         # 调用Android 相关处理逻辑
         if types == "Android":
-            task_info = AndroidTask(cacar_path,self.package).start()
+            task_info = AndroidTask(file_path, self.package).start()
         # 调用iOS 相关处理逻辑
         elif types == "iOS":
-            task_info = iOSTask(cacar_path).start()
+            task_info = iOSTask(file_path).start()
         # 调用Web 相关处理逻辑
         else:
-            task_info = WebTask(cacar_path).start()
+            task_info = WebTask(file_path).start()
         return task_info
 
     # 线程控制中心
