@@ -18,7 +18,8 @@ class iOSTask(object):
         self.file_queue = Queue()
         self.shell_flag = False
         self.file_identifier= []
-
+        self.permissions = []
+        
     def start(self):
         file_path = self.path
         if file_path.split(".")[-1] == 'ipa':
@@ -28,7 +29,7 @@ class iOSTask(object):
             self.file_queue.put(file_path)
         else:
             raise Exception("Retrieval of this file type is not supported. Select IPA file or Mach-o file.")
-        return {"shell_flag":self.shell_flag,"file_queue":self.file_queue,"comp_list":[],"packagename":None,"file_identifier":self.file_identifier}
+        return {"shell_flag":self.shell_flag,"file_queue":self.file_queue,"comp_list":[],"packagename":None,"file_identifier":self.file_identifier,"permissions":self.permissions}
 
     def __get_file_header__(self,file_path):
         hex_hand = 0x0

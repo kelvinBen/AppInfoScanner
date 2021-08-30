@@ -139,6 +139,12 @@ shell_list =[
     'io.flutter.app.FlutterApplication'
 ]
 
+# 此处配置Android权限信息
+apk_permissions = [
+    'android.permission.CAMERA',
+    'android.permission.READ_CONTACTS'
+]
+
 # 此处配置需要扫描的web文件后缀
 web_file_suffix =[
     "html",

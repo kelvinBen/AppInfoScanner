@@ -52,6 +52,7 @@ class BaseTask(object):
         comp_list = task_info["comp_list"]
         packagename = task_info["packagename"]
         file_identifier = task_info["file_identifier"]
+        permissions = task_info["permissions"]
         
         if shell_flag:
             print('[-] \033[3;31m Error: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
@@ -66,7 +67,7 @@ class BaseTask(object):
             thread.join()
     
         # 结果输出中心
-        self.__print_control__(packagename,comp_list,file_identifier)
+        self.__print_control__(packagename,comp_list,file_identifier,permissions)
 
 
     def __tast_control__(self):
@@ -98,7 +99,7 @@ class BaseTask(object):
             thread.start()
             self.thread_list.append(thread)
 
-    def __print_control__(self,packagename,comp_list,file_identifier):
+    def __print_control__(self,packagename,comp_list,file_identifier,permissions):
         txt_result_path = cores.txt_result_path
         xls_result_path = cores.xls_result_path
         all_flag = cores.all_flag
@@ -108,14 +109,19 @@ class BaseTask(object):
             NetTask(self.result_dict,self.app_history_list,self.domain_history_list,file_identifier,self.threads).start()
             
         if packagename: 
-            print("[*] =========  The package name of this APP is: ===============")
+            print("[*] ========= The package name of this APP is: ===============")
             print(packagename)
 
         if len(comp_list) != 0:
-            print("[*] ========= Component information is as follows :===============")
+            print("[*] ========= Component information is as follows: ===============")
             for json in comp_list:
                 print(json)
         
+        if len(permissions) != 0:
+            print("[*] ========= Sensitive permission information is as follows: ===============")
+            for permission in permissions:
+                print(permission)
+
         if all_flag:
             value_list = []
             with open(txt_result_path,"a+",encoding='utf-8',errors='ignore') as f:
