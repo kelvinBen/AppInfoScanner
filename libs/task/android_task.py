@@ -20,7 +20,8 @@ class AndroidTask(object):
         self.packagename=""
         self.comp_list=[]
         self.file_identifier=[]
-        
+        self.permissions = []
+
     def start(self):
         # 检查java环境是否存在
         if os.system("java -version") !=0 :
@@ -34,7 +35,7 @@ class AndroidTask(object):
            if self.__decode_file__(input_file_path) == "error":
                raise Exception("Retrieval of this file type is not supported. Select APK file or DEX file.")
         
-        return {"comp_list":self.comp_list,"shell_flag":self.shell_flag,"file_queue":self.file_queue,"packagename":self.packagename,"file_identifier":self.file_identifier}
+        return {"comp_list":self.comp_list,"shell_flag":self.shell_flag,"file_queue":self.file_queue,"packagename":self.packagename,"file_identifier":self.file_identifier,"permissions":self.permissions}
 
     def __decode_file__(self,file_path):
         apktool_path = str(cores.apktool_path)
@@ -143,3 +144,9 @@ class AndroidTask(object):
             if aname and len(aname)>=1:
                 if aname[0] in config.shell_list:
                     self.shell_flag = True
+            
+            am_permission = re.compile(r'<uses-permission android:name="(.*)"/>')
+            ampermissions = am_permission.findall(am_str)
+            for ampermission in ampermissions:
+                if ampermission in config.apk_permissions:
+                    self.permissions.append(ampermission)
