@@ -72,7 +72,7 @@ class ParsesThreads(threading.Thread):
         for akAndSk in akAndSkList:
             ak = ("[%s]-->:%s") % (name,akAndSk.strip())
             self.result_list.append(ak)
-            print("[+] [%s] AK or SK in %s:") % (name, akAndSk.strip())
+            print(("[+] [%s] AK or SK in %s:") % (name, akAndSk.strip()))
 
     def __parse_string__(self,result):
         # 通过正则筛选需要过滤的字符串
@@ -89,7 +89,7 @@ class ParsesThreads(threading.Thread):
 
                 self.threadLock.acquire()
                 if cores.all_flag:
-                    print("[+] The string searched for matching rule is: %s" % (resl_str))
+                    print(("[+] The string searched for matching rule is: %s") % (resl_str))
                 self.result_list.append(resl_str)
                 self.threadLock.release()
             continue
