@@ -413,6 +413,12 @@ APP组件: fastjson com.alibaba.fastjson
 
 **微信**：bromomo (添加好友请备注：GitHub)
 
+**微信群**：
+
+![image](https://user-images.githubusercontent.com/19259171/177041407-66b627d7-39b5-40e7-9858-85dca5b4f958.png)
+
+如无法加入请添加微信好友后进群。
+
 **邮箱**：blsm@vip.qq.com
 
 提交需求、提交BUG修复、技术交流、商务合作均可添加作者好友。
