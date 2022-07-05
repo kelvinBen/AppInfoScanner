@@ -356,9 +356,11 @@ method: 用于配置自动下载过程中需要的请求方法
 
 说明需要扫描的应用存在壳，需要进行脱壳/砸壳以后才能进行扫描，目前可以结合以下工具进行脱壳/砸壳处理
 ```
+    
     Android:
         xposed模块： dexdump
         frida模块： FRIDA-DEXDump
+        无Root脱壳：blackdex
     iOS:
         firda模块：
             windows系统使用： frida-ipa-dump
