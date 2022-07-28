@@ -1,4 +1,4 @@
- ![License](https://img.shields.io/badge/Version-V1.0.8-red) ![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange)
+ ![License](https://img.shields.io/badge/Version-V1.0.8-red) ![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange) [![HitCount](https://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner.svg?style=flat&show=unique)](http://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner)
 
 
 该项目目前仅仅是规划项目中的冰山一角，如果您对此项目感兴趣或者想参与后继项目的开发工作或者翻译工作中，请发送邮件至blsm@vip.qq.com说明你的能力和诉求。
@@ -427,9 +427,6 @@ APP组件: fastjson com.alibaba.fastjson
 
 ## Stargazers
 [![Stargazers over time](https://starchart.cc/kelvinBen/AppInfoScanner.svg)](https://starchart.cc/kelvinBen/AppInfoScanner)
-
-## HITS
-  [![HitCount](https://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner.svg?style=flat&show=unique)](http://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner)
 
 # 404StarLink 2.0 - Galaxy
 ![](https://github.com/knownsec/404StarLink-Project/raw/master/logo.png)
