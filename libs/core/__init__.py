@@ -26,7 +26,7 @@ output_path = ""
 download_flag = False
 
 # excel 起始行号
-excel_row = 0
+excel_row = 1
 
 class Bootstrapper(object):
 
@@ -78,7 +78,7 @@ class Bootstrapper(object):
         apktool_path = os.path.join(tools_dir, "apktool.jar")
         download_path = os.path.join(out_dir,"download")
         txt_result_path = os.path.join(out_dir,"result_"+str(create_time)+".txt")
-        xls_result_path = os.path.join(out_dir,"result_"+str(create_time)+".xls")
+        xls_result_path = os.path.join(out_dir,"result_"+str(create_time)+".xlsx")
         app_history_path = os.path.join(history_path,"app_history.txt")
         domain_history_path = os.path.join(history_path,"domain_history.txt")
 
@@ -100,7 +100,6 @@ class Bootstrapper(object):
         print("[*] Create directory {}".format(output_path))
 
         if not os.path.exists(download_path):
-            # shutil.rmtree(download_path)
             os.makedirs(download_path)
             print("[*] Create directory {}".format(download_path))
 
