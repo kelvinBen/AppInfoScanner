@@ -425,10 +425,10 @@ APP组件: fastjson com.alibaba.fastjson
 
 提交需求、提交BUG修复、技术交流、商务合作均可添加作者好友。
 
-## Stargazers
+## Stargazers over time
 [![Stargazers over time](https://starchart.cc/kelvinBen/AppInfoScanner.svg)](https://starchart.cc/kelvinBen/AppInfoScanner)
 
-# 404StarLink 2.0 - Galaxy
+## 404StarLink 2.0 - Galaxy
 ![](https://github.com/knownsec/404StarLink-Project/raw/master/logo.png)
 
 AppInfoScanner 是 404Team [星链计划2.0](https://github.com/knownsec/404StarLink2.0-Galaxy)中的一环，如果对AppInfoScanner 有任何疑问又或是想要找小伙伴交流，可以参考星链计划的加群方式。
