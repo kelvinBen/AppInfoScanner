@@ -126,7 +126,8 @@ class iOSTask(object):
                     if not os.path.exists(dir_path):
                         os.makedirs(dir_path)
                 shutil.move(old_ext_path, new_ext_path)
-                if os.path.exists(old_ext_path) and (".app" in old_ext_path):
+                # 当旧目录与新目录不一致时，删除旧的目录
+                if not (old_ext_path == new_ext_path) and os.path.exists(old_ext_path) and (".app" in old_ext_path):
                     try:
                         # mac发生权限问题的时候做处理
                         os.remove(old_ext_path)
