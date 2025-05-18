@@ -75,9 +75,18 @@ class ParsesThreads(threading.Thread):
     def __ak_and_sk__(self, name, ak_rule, content):
         akAndSkList = re.compile(ak_rule).findall(content)
         for akAndSk in akAndSkList:
-            ak = ("[%s]-->:%s") % (name, akAndSk.strip())
+            if isinstance(akAndSk, tuple):
+                value = akAndSk[-1].strip()
+            else:
+                value = akAndSk.strip()
+
+            # 过滤空值
+            if not value:
+                continue
+
+            ak = ("[%s]-->:%s") % (name, value)
             self.result_list.append(ak)
-            print(("[+] [%s] AK or SK in %s:") % (name, akAndSk.strip()))
+            print(("[+] [%s] AK or SK in %s:") % (name, value))
 
     def __parse_string__(self, result):
         # 通过正则筛选需要过滤的字符串
