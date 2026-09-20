@@ -73,8 +73,8 @@ class iOSTask(object):
         for dir_file in dir_or_files:
             dir_file_path = os.path.join(scanner_dir, dir_file)
             if os.path.isdir(dir_file_path):
-                if dir_file.endswith(".app"):
-                    self.elf_file_name = dir_file.replace(".app", "")
+                if str(dir_file).endswith(".app"):
+                    self.elf_file_name = str(dir_file).replace(".app", "")
                 self.__get_scanner_file__(dir_file_path, file_suffix)
             else:
                 if self.elf_file_name == dir_file:
@@ -82,7 +82,7 @@ class iOSTask(object):
                     self.file_queue.put(dir_file_path)
                     continue
                 if cores.resource_flag:
-                    dir_file_suffix = dir_file.split(".")
+                    dir_file_suffix = str(dir_file).split(".")
                     if len(dir_file_suffix) > 1:
                         if dir_file_suffix[-1] in file_suffix:
                             self.__get_file_header__(dir_file_path)
@@ -93,14 +93,11 @@ class iOSTask(object):
             zip_file_names = zip_files.namelist()
             zip_files.extract(zip_file_names[0], output_path)
             try:
-                new_zip_file = zip_file_names[0].encode(
-                    'cp437').decode('utf-8')
+                new_zip_file = zip_file_names[0].encode('cp437').decode('utf-8')
             except UnicodeEncodeError:
-                new_zip_file = zip_file_names[0].encode(
-                    'utf-8').decode('utf-8')
+                new_zip_file = zip_file_names[0].encode('utf-8').decode('utf-8')
 
-                old_zip_dir = self.__get_parse_dir__(
-                    output_path, zip_file_names[0])
+                old_zip_dir = self.__get_parse_dir__(output_path, zip_file_names[0])
                 new_zip_dir = self.__get_parse_dir__(output_path, new_zip_file)
                 os.rename(old_zip_dir, new_zip_dir)
 
