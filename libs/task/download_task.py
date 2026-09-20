@@ -45,4 +45,5 @@ class DownloadTask(object):
             thread.start()
             thread.join()
             print()
-            return {"path": cache_path, "type": types}
+            # 返回线程内净化后的实际落盘路径，与下载行为保持一致
+            return {"path": thread.cache_path, "type": types}

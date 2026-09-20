@@ -1,5 +1,7 @@
 requests
 click
 openpyxl
-frida-tools==11.0.0
+# frida-tools 11.0.0 (2021) 在新版 setuptools 下构建 wheel 失败 (issue #47)，
+# 与集成 frida-server 17.x 的版本对应，放宽到 13.x ~ 14.x
+frida-tools>=13.0.0,<15.0.0
 frida-dexdump

@@ -6,6 +6,7 @@ import os
 import time
 import shutil
 import platform
+import subprocess
 
 # smali 所在路径
 smali_path = ""
@@ -140,7 +141,8 @@ class Bootstrapper(object):
             if not os.path.exists(new_dir):
                 os.makedirs(new_dir)
             os.chdir(output_path)
-            cmd = ("robocopy %s %s /purge") % (new_dir, old_dir)
-            os.system(cmd)
+            # 使用参数列表调用 robocopy，避免路径含空格时破坏命令；
+            # robocopy 的返回码为位掩码，< 8 均表示清理成功
+            result = subprocess.run(["robocopy", new_dir, old_dir, "/purge"])
             os.removedirs(new_dir)
             os.removedirs(old_dir)
