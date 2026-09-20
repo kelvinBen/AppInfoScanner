@@ -127,14 +127,22 @@ def fix_zip(path):
     return True
 
 
+def resolve_path(path):
+    """规范化入参路径：转绝对路径并拒绝路径穿越片段。"""
+    if ".." in path.replace("\\", "/").split("/"):
+        print("[-] Path traversal segments are not allowed: {}".format(path))
+        return None
+    return os.path.abspath(path)
+
+
 def main(argv):
     if len(argv) < 3 or argv[1] not in ("detect", "fix"):
         print(__doc__)
         return 1
     if argv[1] == "detect":
-        path = argv[2]
-        if not os.path.isfile(path):
-            print("[-] No such file: {}".format(path))
+        path = resolve_path(argv[2])
+        if path is None or not os.path.isfile(path):
+            print("[-] No such file: {}".format(argv[2]))
             return 1
         detect(path)
         return 0
@@ -142,9 +150,9 @@ def main(argv):
     if len(argv) < 4 or argv[2] not in ("dex", "zip"):
         print(__doc__)
         return 1
-    ftype, path = argv[2], argv[3]
-    if not os.path.isfile(path):
-        print("[-] No such file: {}".format(path))
+    ftype, path = argv[2], resolve_path(argv[3])
+    if path is None or not os.path.isfile(path):
+        print("[-] No such file: {}".format(argv[3]))
         return 1
     if ftype == "dex":
         if detect_dex(path) is None:
