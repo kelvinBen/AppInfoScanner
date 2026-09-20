@@ -1,13 +1,13 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
-# Author: kelvinBen
+# Author: kelvinBen (微信/WeChat: bromomo )
 # Github: https://github.com/kelvinBen/AppInfoScanner
+# Gitee: https://gitee.com/kelvin_ben/AppInfoScanner
 
-import openpyxl
-import config
 from queue import Queue
 import libs.core as cores
 from libs.core.net import NetThreads
+from libs.core.report import extract_host, sniff_allowed
 
 
 class NetTask(object):
@@ -24,34 +24,22 @@ class NetTask(object):
         self.domain_history_list = domain_history_list
 
     def start(self):
-        xls_result_path = cores.xls_result_path
-        workbook = openpyxl.Workbook()
-        worksheet = self.__creating_excel_header__(workbook)
-
+        """执行网络嗅探并返回行数据(xlsx 由 report 模块统一生成)。"""
+        self.sniff_rows = []
+        self.skipped_sniff = 0  # 被嗅探策略跳过的内网地址数
         self.__write_result_to_txt__()
-
-        self.__start_threads__(worksheet)
-
+        self.__start_threads__(self.sniff_rows)
         for thread in self.thread_list:
             thread.join()
-
-        workbook.save(xls_result_path)
-
-    def __creating_excel_header__(self, workbook):
-        worksheet = workbook.create_sheet("Result", 0)
-        worksheet.cell(row=1, column=1, value="Number")
-        worksheet.cell(row=1, column=2, value="IP/URL")
-        worksheet.cell(row=1, column=3, value="Domain")
-        worksheet.cell(row=1, column=4, value="Status")
-        worksheet.cell(row=1, column=5, value="IP")
-        worksheet.cell(row=1, column=6, value="Server")
-        worksheet.cell(row=1, column=7, value="Title")
-        worksheet.cell(row=1, column=8, value="CDN")
-        worksheet.cell(row=1, column=9, value="Finger")
-        return worksheet
+        cores.progress_end()
+        if self.skipped_sniff:
+            cores.logp(cores.i18n.t("[*] Skipped sniffing {} internal addresses (kept in reports)", self.skipped_sniff))
+        return self.sniff_rows
 
     def __write_result_to_txt__(self):
         append_file_flag = True
+        # 后缀表转 set：逐条结果判断为 O(1)
+        sniffer_filter_suffix = set(cores.config.sniffer_filter)
 
         for key, value in self.result_dict.items():
             for result in value:
@@ -75,7 +63,11 @@ class NetTask(object):
                         continue
 
                     url_suffix = result[result.rindex(".")+1:].lower()
-                    if not(cores.resource_flag and url_suffix in config.sniffer_filter):
+                    sniffable = sniff_allowed(extract_host(result))
+                    if not sniffable:
+                        self.skipped_sniff += 1
+                        cores.logf("[SNIFF-SKIP] internal address: " + result)
+                    if sniffable and not(cores.resource_flag and url_suffix in sniffer_filter_suffix):
                         self.domain_queue.put(
                             {"domain": domain, "url_ip": result})
 
@@ -97,10 +89,10 @@ class NetTask(object):
                                 cores.app_history_path, identifier)
                             append_file_flag = False
 
-    def __start_threads__(self, worksheet):
+    def __start_threads__(self, rows):
         for threadID in range(0, self.threads):
             name = "Thread - " + str(threadID)
-            thread = NetThreads(threadID, name, self.domain_queue, worksheet)
+            thread = NetThreads(threadID, name, self.domain_queue, rows)
             thread.start()
             self.thread_list.append(thread)
 

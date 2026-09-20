@@ -1,10 +1,12 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
-# Author: kelvinBen
+# Author: kelvinBen (微信/WeChat: bromomo )
 # Github: https://github.com/kelvinBen/AppInfoScanner
+# Gitee: https://gitee.com/kelvin_ben/AppInfoScanner
 
 import click
 
+import libs.core as cores
 from libs.core import Bootstrapper
 from libs.task.base_task import BaseTask
 
@@ -36,11 +38,13 @@ def cli():
 def android(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output,
             package: str) -> None:
     try:
-        bootstrapper = Bootstrapper(__file__, output, all, no_resource)
+        bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()
 
         BaseTask("Android", inputs, rules, sniffer, threads, package).start()
     except Exception as e:
+        cores.logexc("[!] Task aborted")
+        cores.logp(cores.i18n.t("[-] Task failed: {}", e))
         raise e
 
 
@@ -60,11 +64,13 @@ def android(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool
 @click.option("-o", '--output', required=False, type=str, default=None, help="Specify the result set output directory.")
 def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str) -> None:
     try:
-        bootstrapper = Bootstrapper(__file__, output, all, no_resource)
+        bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()
 
         BaseTask("iOS", inputs, rules, sniffer, threads).start()
     except Exception as e:
+        cores.logexc("[!] Task aborted")
+        cores.logp(cores.i18n.t("[-] Task failed: {}", e))
         raise e
 
 
@@ -84,11 +90,13 @@ def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, th
 @click.option("-o", '--output', required=False, type=str, default=None, help="Specify the result set output directory.")
 def web(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str) -> None:
     try:
-        bootstrapper = Bootstrapper(__file__, output, all, no_resource)
+        bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()
 
         BaseTask("Web", inputs, rules, sniffer, threads).start()
     except Exception as e:
+        cores.logexc("[!] Task aborted")
+        cores.logp(cores.i18n.t("[-] Task failed: {}", e))
         raise e
 
 

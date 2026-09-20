@@ -1,13 +1,10 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
-# Author: kelvinBen
+# Author: kelvinBen (微信/WeChat: bromomo )
 # Github: https://github.com/kelvinBen/AppInfoScanner
+# Gitee: https://gitee.com/kelvin_ben/AppInfoScanner
 import os
-import re
 import time
-import config
-import hashlib
-from queue import Queue
 import libs.core as cores
 from libs.core.download import DownloadThreads
 
@@ -38,12 +35,15 @@ class DownloadTask(object):
             else:  # 目录处理
                 return {"path": path, "type": types}
         else:
-            print(
+            cores.logp(
                 "[*] Detected that the task is not local, preparing to download file......")
             cache_path = os.path.join(cores.download_path, file_name)
             thread = DownloadThreads(path, file_name, cache_path, types)
             thread.start()
             thread.join()
-            print()
+            cores.logp()
+            if not cores.download_flag:
+                raise Exception(
+                    "File download failed! Please check the URL/network or configure headers, data and method in config.toml, then download manually.")
             # 返回线程内净化后的实际落盘路径，与下载行为保持一致
             return {"path": thread.cache_path, "type": types}

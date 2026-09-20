@@ -1,19 +1,20 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
-# Author: kelvinBen
+# Author: kelvinBen (微信/WeChat: bromomo )
 # Github: https://github.com/kelvinBen/AppInfoScanner
-import json
+# Gitee: https://gitee.com/kelvin_ben/AppInfoScanner
 import os
 import re
 import shutil
+import tempfile
 import subprocess
 
-import config
 import hashlib
 import zipfile
-import platform
 from queue import Queue
 import libs.core as cores
+from libs.core import fix_magic
+from libs.core import provision
 
 
 class AndroidTask(object):
@@ -25,350 +26,85 @@ class AndroidTask(object):
         self.shell_flag = False
         self.packagename = ""
         self.comp_list = []
+        self.shell_report = []
         self.file_identifier = []
         self.permissions = []
         self.files = []
-        self.protect_flag = """{
-          "360加固": [
-            "assets/.appkey",
-            "assets/libjiagu.so",
-            "libjiagu.so",
-            "libjiagu_art.so",
-            "libjiagu_x86.so",
-            "libprotectClass.so",
-            ".appkey",
-            "1ibjgdtc.so",
-            "libjgdtc.so",
-            "libjgdtc_a64.so",
-            "libjgdtc_art.so",
-            "libjgdtc_x64.so",
-            "libjgdtc_x86.so",
-            "libjiagu_a64.so",
-            "libjiagu_ls.so",
-            "libjiagu_x64.so"
-          ],
-          "APKProtect": [
-            "libAPKProtect.so"
-          ],
-          "UU安全": [
-            "libuusafe.jar.so",
-            "libuusafe.so",
-            "libuusafeempty.so",
-            "assets/libuusafe.jar.so",
-            "assets/libuusafe.so",
-            "lib/armeabi/libuusafeempty.so"
-          ],
-          "apktoolplus": [
-            "assets/jiagu_data.bin",
-            "assets/sign.bin",
-            "jiagu_data.bin",
-            "lib/armeabi/libapktoolplus_jiagu.so",
-            "libapktoolplus_jiagu.so",
-            "sign.bin"
-          ],
-          "中国移动加固": [
-            "assets/mogosec_classes",
-            "assets/mogosec_data",
-            "assets/mogosec_dexinfo",
-            "assets/mogosec_march",
-            "ibmogosecurity.so",
-            "lib/armeabi/libcmvmp.so",
-            "lib/armeabi/libmogosec_dex.so",
-            "lib/armeabi/libmogosec_sodecrypt.so",
-            "lib/armeabi/libmogosecurity.so",
-            "libcmvmp.so",
-            "libmogosec_dex.so",
-            "libmogosec_sodecrypt.so",
-            "mogosec_classes",
-            "mogosec_data",
-            "mogosec_dexinfo",
-            "mogosec_march"
-          ],
-          "几维安全": [
-            "assets/dex.dat",
-            "lib/armeabi/kdpdata.so",
-            "lib/armeabi/libkdp.so",
-            "lib/armeabi/libkwscmm.so",
-            "libkwscmm.so",
-            "libkwscr.so",
-            "libkwslinker.so"
-          ],
-          "启明星辰": [
-            "libvenSec.so",
-            "libvenustech.so"
-          ],
-          "网秦加固": [
-            "libnqshield.so"
-          ],
-          "娜迦加固": [
-            "libchaosvmp.so",
-            "libddog.so",
-            "libfdog.so"
-          ],
-          "娜迦加固（新版2022）": [
-            "assets/maindata/fake_classes.dex",
-            "lib/armeabi/libxloader.so",
-            "lib/armeabi-v7a/libxloader.so",
-            "lib/arm64-v8a/libxloader.so",
-            "libxloader.so"
-          ],
-          "娜迦加固（企业版）": [
-            "libedog.so"
-          ],
-          "梆梆安全（企业版）": [
-            "libDexHelper-x86.so",
-            "libDexHelper.so",
-            "1ibDexHelper.so"
-          ],
-          "梆梆安全": [
-            "libSecShell.so",
-            "libsecexe.so",
-            "libsecmain.so",
-            "libSecShel1.so"
-          ],
-          "梆梆安全（定制版）": [
-            "assets/classes.jar",
-            "lib/armeabi/DexHelper.so"
-          ],
-          "梆梆安全（免费版）": [
-            "assets/secData0.jar",
-            "lib/armeabi/libSecShell-x86.so",
-            "lib/armeabi/libSecShell.so"
-          ],
-          "海云安加固": [
-            "assets/itse",
-            "lib/armeabi/libitsec.so",
-            "libitsec.so"
-          ],
-          "爱加密": [
-            "assets/af.bin",
-            "assets/ijiami.ajm",
-            "assets/ijm_lib/X86/libexec.so",
-            "assets/ijm_lib/armeabi/libexec.so",
-            "assets/signed.bin",
-            "ijiami.dat",
-            "lib/armeabi/libexecmain.so",
-            "libexecmain.so"
-          ],
-          "爱加密企业版": [
-            "ijiami.ajm"
-          ],
-          "珊瑚灵御": [
-            "assets/libreincp.so",
-            "assets/libreincp_x86.so",
-            "libreincp.so",
-            "libreincp_x86.so"
-          ],
-          "瑞星加固": [
-            "librsprotect.so"
-          ],
-          "百度加固": [
-            "libbaiduprotect.so",
-            "assets/baiduprotect.jar",
-            "assets/baiduprotect1.jar",
-            "baiduprotect1.jar",
-            "lib/armeabi/libbaiduprotect.so",
-            "libbaiduprotect_art.so",
-            "libbaiduprotect_x86.so"
-          ],
-          "盛大加固": [
-            "libapssec.so"
-          ],
-          "网易易盾": [
-            "libnesec.so"
-          ],
-          "腾讯": [
-            "libexec.so",
-            "libshell.so"
-          ],
-          "腾讯加固": [
-            "lib/armeabi/mix.dex",
-            "lib/armeabi/mixz.dex",
-            "lib/armeabi/libshella-xxxx.so",
-            "lib/armeabi/libshellx-xxxx.so",
-            "tencent_stub"
-          ],
-          "腾讯乐固（旧版）": [
-            "libtup.so",
-            "mix.dex",
-            "liblegudb.so",
-            "libshella",
-            "mixz.dex",
-            "libshel1x"
-          ],
-          "腾讯乐固": [
-            "libshellx"
-          ],
-          "腾讯乐固（VMP）": [
-            "lib/arm64-v8a/libxgVipSecurity.so",
-            "lib/armeabi-v7a/libxgVipSecurity.so",
-            "libxgVipSecurity.so"
-          ],
-          "腾讯云": [
-            "assets/libshellx-super.2021.so",
-            "lib/armeabi/libshell-super.2019.so",
-            "lib/armeabi/libshell-super.2020.so",
-            "lib/armeabi/libshell-super.2021.so",
-            "lib/armeabi/libshell-super.2022.so",
-            "lib/armeabi/libshell-super.2023.so",
-            "tencent_sub"
-          ],
-          "腾讯云移动应用安全": [
-            "0000000lllll.dex",
-            "00000olllll.dex",
-            "000O00ll111l.dex",
-            "00O000ll111l.dex",
-            "0OO00l111l1l",
-            "o0oooOO0ooOo.dat"
-          ],
-          "腾讯云移动应用安全（腾讯御安全）": [
-            "libBugly-yaq.so",
-            "libshell-super.2019.so",
-            "libshellx-super.2019.so",
-            "libzBugly-yaq.so",
-            "t86",
-            "tosprotection",
-            "tosversion",
-            "000000011111.dex",
-            "000000111111.dex",
-            "000001111111",
-            "00000o11111.dex",
-            "o0ooo000oo0o.dat"
-          ],
-          "腾讯御安全": [
-            "libtosprotection.armeabi-v7a.so",
-            "libtosprotection.armeabi.so",
-            "libtosprotection.x86.so",
-            "assets/libtosprotection.armeabi-v7a.so",
-            "assets/libtosprotection.armeabi.so",
-            "assets/libtosprotection.x86.so",
-            "assets/tosversion",
-            "lib/armeabi/libTmsdk-xxx-mfr.so",
-            "lib/armeabi/libtest.so"
-          ],
-          "腾讯Bugly": [
-            "lib/arm64-v8a/libBugly.so",
-            "libBugly.so"
-          ],
-          "蛮犀": [
-            "assets/mxsafe.config",
-            "assets/mxsafe.data",
-            "assets/mxsafe.jar",
-            "assets/mxsafe/arm64-v8a/libdSafeShell.so",
-            "assets/mxsafe/x86_64/libdSafeShell.so",
-            "libdSafeShell.so"
-          ],
-          "通付盾": [
-            "libNSaferOnly.so",
-            "libegis.so"
-          ],
-          "阿里加固": [
-            "assets/armeabi/libfakejni.so",
-            "assets/armeabi/libzuma.so",
-            "assets/classes.dex.dat",
-            "assets/dp.arm-v7.so.dat",
-            "assets/dp.arm.so.dat",
-            "assets/libpreverify1.so",
-            "assets/libzuma.so",
-            "assets/libzumadata.so",
-            "dexprotect"
-          ],
-          "阿里聚安全": [
-            "aliprotect.dat",
-            "libdemolish.so",
-            "libfakejni.so",
-            "libmobisec.so",
-            "libsgmain.so",
-            "libzuma.so",
-            "libzumadata.so",
-            "libdemolishdata.so",
-            "libpreverify1.so",
-            "libsgsecuritybody.so"
-          ],
-          "顶像科技": [
-            "libx3g.so",
-            "lib/armeabi/libx3g.so"
-          ]
-        }"""
 
     def start(self):
-        # 检查java环境是否存在
-        if os.system("java -version") != 0:
-            raise Exception("Please install the Java environment!")
-        # 检查Frida环境是否存在
-        if os.system("frida --version") != 0:
-            raise Exception("Please install the Frida environment!")
+        # 环境检查 + 自动供给: mac/Linux 缺失时经包管理器/pip 自动安装(provision)
+        cores.logf("[CMD] java -version")
+        if shutil.which("java") is None:
+            if not provision.ensure_java():
+                raise Exception(cores.i18n.t("Please install the Java environment!"))
+        if subprocess.call(["java", "-version"], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL) != 0:
+            raise Exception(cores.i18n.t("Please install the Java environment!"))
+        cores.logf("[CMD] frida --version")
+        if shutil.which("frida") is None and not provision.ensure_frida():
+            raise Exception(cores.i18n.t("Please install the Frida environment!"))
 
         input_file_path = self.path
         if os.path.isdir(input_file_path):
             self.__decode_dir__(input_file_path)
         else:
             if self.__decode_file__(input_file_path) == "error":
-                raise Exception(
-                    "Retrieval of this file type is not supported. Select APK file or DEX file.")
+                raise Exception(cores.i18n.t(
+                    "Retrieval of this file type is not supported. Select APK file or DEX file."))
 
         return {"comp_list": self.comp_list, "shell_flag": self.shell_flag, "file_queue": self.file_queue,
                 "packagename": self.packagename, "file_identifier": self.file_identifier,
-                "permissions": self.permissions}
-
-    def __detect_protect__(self, file_path):
-        markNameMap = json.loads(self.protect_flag)
-        markNameMap = dict(markNameMap)
-        zip_stream = zipfile.ZipFile(file_path)  # 默认模式r,读
-        flag = ''
-        for zippath in zip_stream.namelist():
-            if 'lib' in zippath:
-                for key, value in markNameMap.items():
-                    for mark in value:
-                        if mark in zippath:
-                            print("detect 【{}】 protector\nspecific code:{}->{}\n".format(key, zippath, mark))
-                            flag += ("detect 【{}】 protector\nspecific code:{}->{}\n".format(key, zippath, mark))
-        if len(flag) > 0:
-            self.__android_unpack__()
-        # so库文件模式找不到就全量匹配
-        for zippath in zip_stream.namelist():
-            for key, value in markNameMap.items():
-                for mark in value:
-                    if mark in zippath:
-                        print("detect 【{}】 protector\nspecific code:{}->{}\n".format(key, zippath, mark))
-                        flag += ("detect 【{}】 protector\nspecific code:{}->{}\n".format(key, zippath, mark))
-        if len(flag) > 0:
-            self.__android_unpack__()
-        print("We can't detect protect")
+                "permissions": self.permissions, "shell_report": self.shell_report}
 
     def __android_unpack__(self):
-        print('[*] unpacking')
-        cmd_str = ('%s install %s') % (str(cores.adb_path), str(self.path))
-        print('[*] Install the APK')
-        if os.system(cmd_str) == 0:
-            print("Push Frida Server")
-            cmd_str = ('%s push %s /data/local/tmp') % (str(cores.adb_path), str(cores.frida32_path))
-            cmd_str1 = ('%s push %s /data/local/tmp') % (str(cores.adb_path), str(cores.frida64_path))
-            cmd_str2 = ('%s shell su -c "chmod 777 /data/local/tmp/hexl-server-arm64"') % (str(cores.adb_path))
-            cmd_str3 = ('%s shell su -c "setenforce 0"') % (str(cores.adb_path))
-            cmd_str4 = ('%s shell su -c "./data/local/tmp/hexl-server-arm64 &"') % (str(cores.adb_path))
-            print("[*] Running Frida Server")
-            if os.system(cmd_str) == 0 and os.system(cmd_str1) == 0 and os.system(cmd_str2) == 0 \
-                    and os.system(cmd_str3) == 0 and os.system(cmd_str4) == 0:
-                print("[*] Frida Server started")
-            else:
-                print("[-] Running failed, please check the error in terminal")
-                exit()
-        else:
-            print("[-] We can't install the APP")
-            exit()
-        get_info_command = "%s dump badging %s" % (cores.aapt_apth, self.path)
-        pip = os.popen(get_info_command)
-        output = pip.buffer.read().decode('utf-8', 'ignore')
-        if output == "":
-            raise Exception("can't get the app info")
-        match = re.compile("package: name='(\S+)'").match(
-            output)  # 通过正则匹配，获取包名
-        print(match.group(1))
-        cmd_str = ('frida-dexdump -U -f %s') % (str(match.group(1)))
-        if os.system(cmd_str) != 0:
-            print("An error occurred in the unpack")
-            exit()
+        cores.logp(cores.i18n.t("[*] unpacking"))
+        adb_path = provision.ensure_adb()
+        if not adb_path:
+            raise Exception("adb not available; install android platform-tools first.")
+        device_tmp_dir = "/data/local/tmp"
+        cores.logp(cores.i18n.t("[*] Install the APK"))
+        # 参数列表方式执行，宿主机路径含空格不会被 shell 拆分；
+        # su -c 的内部命令是设备侧 shell 命令串，作为单参数整体下发
+        if subprocess.call([adb_path, "install", self.path]) != 0:
+            cores.logp(cores.i18n.t("[-] We can't install the APP"))
+            raise Exception("Failed to install the APK on the device.")
+
+        # 版本一致性: 以本地 frida core 为基准获取匹配的 frida-server(自带/下载)
+        cores.logp(cores.i18n.t("Push Frida Server"))
+        abi = subprocess.run([adb_path, "shell", "getprop", "ro.product.cpu.abi"],
+                             capture_output=True, text=True).stdout.strip()
+        server_path = provision.ensure_frida_server(abi, adb_path)
+        if not server_path:
+            raise Exception("No version-matched frida-server available (see run.log).")
+        server_name = os.path.basename(server_path)
+
+        cores.logp(cores.i18n.t("[*] Running Frida Server"))
+        if not (subprocess.call([adb_path, "push", server_path, device_tmp_dir]) == 0 and
+                subprocess.call([adb_path, "shell", "su", "-c",
+                                 "chmod 755 {0}/{1}".format(device_tmp_dir, server_name)]) == 0 and
+                subprocess.call([adb_path, "shell", "su", "-c", "setenforce 0"]) == 0 and
+                subprocess.call([adb_path, "shell", "su", "-c",
+                                 "{0}/{1} &".format(device_tmp_dir, server_name)]) == 0):
+            cores.logp(cores.i18n.t("[-] Running failed, please check the error in terminal"))
+            raise Exception("Frida server failed to start, check the terminal output above.")
+        cores.logp(cores.i18n.t("[*] Frida Server started"))
+
+        # aapt 优先 PATH(POSIX 通常未装)，缺位时回退用 manifest 已解析的包名
+        package_name = self.packagename
+        aapt = shutil.which("aapt") or shutil.which("aapt2")
+        if aapt:
+            cores.logf("[CMD] {} dump badging {}".format(aapt, self.path))
+            result = subprocess.run([aapt, "dump", "badging", self.path],
+                                    capture_output=True, text=True)
+            match = re.compile(r"package: name='(\S+)'").match(result.stdout or "")
+            if match:
+                package_name = match.group(1)
+        if not package_name:
+            raise Exception(cores.i18n.t("can't get the app info"))
+        cores.logp(package_name)
+        if subprocess.call(["frida-dexdump", "-U", "-f", package_name]) != 0:
+            cores.logp(cores.i18n.t("[-] An error occurred in the unpack"))
+            raise Exception("frida-dexdump unpack failed.")
 
     def __decode_file__(self, file_path):
         apktool_path = str(cores.apktool_path)
@@ -377,8 +113,6 @@ class AndroidTask(object):
         filename = os.path.basename(file_path)
         suffix_name = filename.split(".")[-1]
 
-        if suffix_name == "apk":
-            self.__detect_protect__(file_path)
 
         if suffix_name == "apk" or suffix_name == "hpk":
             name = filename.split(".")[0]
@@ -413,26 +147,102 @@ class AndroidTask(object):
 
     # 分解apk
     def __decode_apk__(self, file_path, apktool_path, output_path):
-        cmd_str = ('java -jar "%s" d -f "%s" -o "%s" --only-main-classe') % (
-            str(apktool_path), str(file_path), str(output_path))
-        if os.system(cmd_str) == 0:
-            self.__shell_test__(output_path)
-            self.__scanner_file_by_apktool__(output_path)
-        else:
-            print(
-                "[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
-            raise Exception(file_path + ", Decompilation failed.")
+        # 失败时先经 fix_magic 修复(zip魔数/内部dex/manifest)再重试一次；
+        # 无可修复项则不重试，避免空转
+        attempts = 0
+        while True:
+            cores.logf("[CMD] java -jar {} d -f {} -o {}".format(apktool_path, file_path, output_path))
+            result = subprocess.run(
+                ["java", "-jar", apktool_path, "d", "-f", file_path, "-o", output_path],
+                capture_output=True, text=True)
+            if result.returncode == 0:
+                self.__shell_test__(output_path)
+                self.__scanner_file_by_apktool__(output_path)
+                return
+            attempts += 1
+            if attempts >= 2:
+                break
+            cores.logp(cores.i18n.t("[*] Decompilation failed, trying fix_magic repair..."))
+            if not self.__repair_apk__(file_path):
+                break
+            cores.logp(cores.i18n.t("[*] Repair applied, retrying decompilation"))
+        output_tail = "\n".join(
+            (result.stdout or "").splitlines()[-3:] + (result.stderr or "").splitlines()[-3:])
+        if output_tail:
+            cores.logp("[-] apktool output: {}".format(output_tail))
+        cores.logp("[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
+        raise Exception("{}: {}".format(file_path, cores.i18n.t("Decompilation failed")))
+
+    def __repair_apk__(self, file_path):
+        """apktool 失败后用 fix_magic 检测并修复可修复的损坏，修复了返回 True。
+
+        覆盖三类: APK 自身 zip 魔数、内部 classes*.dex 头、AndroidManifest.xml(AXML) 头；
+        修复前原文件备份为 .bak(fix_magic 内置)；检测不出的损坏不做任何动作。
+        """
+        repaired = False
+        file_size = os.path.getsize(file_path)
+        with open(file_path, "rb") as f:
+            head = f.read(4)
+            f.seek(max(0, file_size - 65536))
+            tail = f.read()
+        # 仅当尾部存在 zip 目录结束记录(EOCD)时才认定是"魔数损坏的 zip"，
+        # 任意垃圾文件不修、不污染
+        if head != b"PK\x03\x04" and b"PK\x05\x06" in tail:
+            fix_magic.fix_zip(file_path)
+            cores.logf("[REPAIR] zip magic fixed: " + file_path)
+            repaired = True
+        try:
+            with zipfile.ZipFile(file_path) as zf:
+                members = [name for name in zf.namelist()
+                           if name == "AndroidManifest.xml" or re.match(r"classes\d*\.dex$", name)]
+        except zipfile.BadZipFile:
+            # 非 zip 结构(且无 EOCD 可修)，不做任何动作
+            return repaired
+        for name in members:
+            with zipfile.ZipFile(file_path) as zf:
+                data = zf.read(name)
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = os.path.join(tmp_dir, os.path.basename(name))
+                with open(tmp_path, "wb") as f:
+                    f.write(data)
+                if name.endswith(".dex"):
+                    status = fix_magic.detect_dex(tmp_path)
+                    if status and not all((status["magic_ok"], status["size_ok"],
+                                           status["checksum_ok"], status["signature_ok"])):
+                        fix_magic.fix_dex(tmp_path)
+                        self.__rewrite_zip_member__(file_path, name, open(tmp_path, "rb").read())
+                        cores.logf("[REPAIR] dex header fixed: " + name)
+                        repaired = True
+                else:
+                    status = fix_magic.detect_axml(tmp_path)
+                    if status and not (status["magic_ok"] and status["size_ok"]):
+                        fix_magic.fix_axml(tmp_path)
+                        self.__rewrite_zip_member__(file_path, name, open(tmp_path, "rb").read())
+                        cores.logf("[REPAIR] manifest (axml) header fixed")
+                        repaired = True
+        return repaired
+
+    def __rewrite_zip_member__(self, apk_path, member_name, new_bytes):
+        """以新内容重写 zip 内单个成员(整包重写后原子替换)。"""
+        fix_magic.backup(apk_path)
+        temp_path = apk_path + ".repaired"
+        with zipfile.ZipFile(apk_path, "r") as zin, \
+                zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = new_bytes if item.filename == member_name else zin.read(item.filename)
+                zout.writestr(item, data)
+        os.replace(temp_path, apk_path)
 
     # 分解dex
     def __decode_dex__(self, file_path, backsmali_path, output_path):
-        cmd_str = ('java -jar "%s" d "%s"') % (str(backsmali_path),
-                                               str(file_path))
-        if os.system(cmd_str) == 0:
+        # baksmali 的 -o 缺省写入 cwd 下的 out，必须显式指向本次扫描的输出目录
+        cores.logf("[CMD] java -jar {} d {} -o {}".format(backsmali_path, file_path, output_path))
+        if subprocess.call(["java", "-jar", backsmali_path, "d", file_path, "-o", output_path]) == 0:
             self.__get_scanner_file__(output_path)
         else:
-            print(
+            cores.logp(
                 "[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
-            raise Exception(file_path + ", Decompilation failed.")
+            raise Exception("{}: {}".format(file_path, cores.i18n.t("Decompilation failed")))
 
     # 初始化检测文件信息
     def __scanner_file_by_apktool__(self, output_path):
@@ -448,7 +258,9 @@ class AndroidTask(object):
                     scanner_file_suffixs = ["smali"]
                 self.__get_scanner_file__(file_path, scanner_file_suffixs)
 
-    def __get_scanner_file__(self, scanner_dir, scanner_file_suffixs=["smali"]):
+    def __get_scanner_file__(self, scanner_dir, scanner_file_suffixs=None):
+        if scanner_file_suffixs is None:
+            scanner_file_suffixs = ["smali"]
         dir_or_files = os.listdir(scanner_dir)
         for dir_or_file in dir_or_files:
             dir_file_path = os.path.join(scanner_dir, dir_or_file)
@@ -460,11 +272,72 @@ class AndroidTask(object):
                         dir_or_file.split(".")[-1] not in scanner_file_suffixs):
                     continue
                 self.file_queue.put(dir_file_path)
-                for component in config.filter_components:
+                # 组件表为 {包名: 说明} 映射；兼容旧版纯包名数组
+                components = cores.config.filter_components.items() if isinstance(
+                    cores.config.filter_components, dict) else (
+                    (component, None) for component in cores.config.filter_components)
+                for component, desc in components:
                     comp = component.replace(".", "/")
-                    if (comp in dir_file_path):
-                        if (component not in self.comp_list):
-                            self.comp_list.append(component)
+                    if comp in dir_file_path:
+                        entry = "{} ({})".format(component, desc) if desc else component
+                        if entry not in self.comp_list:
+                            self.comp_list.append(entry)
+
+    def __match_shell_vendor__(self, app_class):
+        """在统一特征库中按 application 类名定位加固厂商(检测门控入口)。"""
+        for vendor, info in cores.config.shell_vendors.items():
+            if app_class in info.get("classes", []):
+                return vendor
+        return None
+
+    def __package_in_dex__(self, output, package_name):
+        """经验规则的核心判定：应用包名是否存在于任一 dex 的包结构中。
+
+        壳会加密业务 dex，原始包名(如 com.foo.bar 对应 smali/com/foo/bar/)在
+        反编译产物中缺失即疑似加固； multidex 下逐个 smali*/ 目录检查。
+        """
+        pkg_dir = package_name.replace(".", "/")
+        for entry in os.listdir(output):
+            if entry.startswith("smali") and os.path.isdir(os.path.join(output, entry)):
+                if os.path.isdir(os.path.join(output, entry, pkg_dir)):
+                    return True
+        return False
+
+    def __confirm_shell__(self, output, vendor=None):
+        """门控命中后用 so/assets 文件特征确认；vendor=None 时跨厂商定位(包名缺失门控)。
+
+        文件签名确认成功才触发自动脱壳(与旧版签名扫描触发脱壳的语义一致)；
+        仅类名命中而特征缺失时只置 shell_flag，不触发。
+        """
+        if vendor:
+            candidates = {vendor: cores.config.shell_vendors.get(vendor, {})}
+        else:
+            candidates = cores.config.shell_vendors
+        all_signatures = set()
+        for info in candidates.values():
+            all_signatures.update(info.get("so", []))
+            all_signatures.update(info.get("assets", []))
+        if not all_signatures:
+            cores.logp("[*] Shell confirmed by manifest only (无文件特征记录)")
+            return
+        hits = []
+        for root, _, files in os.walk(output):
+            for file_name in files:
+                rel = os.path.relpath(os.path.join(root, file_name), output).replace(os.sep, "/")
+                for sig in all_signatures:
+                    if sig in rel and sig not in hits:
+                        hits.append(sig)
+        if hits:
+            matched = [name for name, info in candidates.items()
+                       if any(sig in (info.get("so", []) + info.get("assets", [])) for sig in hits)]
+            msg = "Shell file signatures confirmed ({}): {}".format(", ".join(matched), ", ".join(hits))
+            cores.logp("[*] " + msg)
+            self.shell_report.append(msg)
+            self.__android_unpack__()
+        else:
+            msg = "Shell suspected but no vendor signature found in decoded output"
+            cores.logp("[*] " + msg)
+            self.shell_report.append(msg)
 
     def __shell_test__(self, output):
         am_path = os.path.join(output, "AndroidManifest.xml")
@@ -481,11 +354,34 @@ class AndroidTask(object):
             am_name = re.compile(r'<application.*android:name=\"(.*?)\".*>')
             aname = am_name.findall(am_str)
             if aname and len(aname) >= 1:
-                if aname[0] in config.shell_list:
+                # 统一特征库门控入口: manifest application 类名先行判断，
+                # 命中厂商后才用该厂商的 so/assets 文件特征确认，不做无差别全量签名扫描
+                vendor = self.__match_shell_vendor__(aname[0])
+                if vendor:
                     self.shell_flag = True
+                    msg = "Detect shell by manifest: {} (加固厂商: {})".format(aname[0], vendor)
+                    cores.logp("[*] " + msg)
+                    self.shell_report.append(msg)
+                    self.__confirm_shell__(output, vendor)
 
-            am_permission = re.compile(r'<uses-permission android:name="(.*)"/>')
+            # 非贪婪捕获：贪婪的 (.*) 在单行(压缩过的) manifest 里会跨标签匹配到最后一个 "/>
+            am_permission = re.compile(r'<uses-permission android:name="(.*?)"/>')
             ampermissions = am_permission.findall(am_str)
             for ampermission in ampermissions:
-                if ampermission in config.apk_permissions:
-                    self.permissions.append(ampermission)
+                if ampermission in cores.config.apk_permissions:
+                    # 权限表为 {权限: 中文说明} 映射；兼容旧版纯权限数组
+                    desc = cores.config.apk_permissions[ampermission] if isinstance(
+                        cores.config.apk_permissions, dict) else None
+                    self.permissions.append(
+                        "{} ({})".format(ampermission, desc) if desc else ampermission)
+
+            # 经验规则门控：壳加密业务 dex 后，应用包名在 dex 包结构中缺失。
+            # 类名门控未命中时启用，命中后跨厂商扫签名定位加固厂商
+            if not self.shell_flag and self.packagename:
+                if not self.__package_in_dex__(output, self.packagename):
+                    self.shell_flag = True
+                    msg = "Suspected shell: package {} not found in any dex (业务dex被壳加密的典型特征)".format(
+                        self.packagename)
+                    cores.logp("[*] " + msg)
+                    self.shell_report.append(msg)
+                    self.__confirm_shell__(output, None)

@@ -1,7 +1,8 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
-# Author: kelvinBen
+# Author: kelvinBen (微信/WeChat: bromomo )
 # Github: https://github.com/kelvinBen/AppInfoScanner
+# Gitee: https://gitee.com/kelvin_ben/AppInfoScanner
 import re
 import time
 import threading
@@ -10,13 +11,14 @@ import libs.core as cores
 
 class NetThreads(threading.Thread):
 
-    def __init__(self, threadID, name, domain_queue, worksheet):
+    def __init__(self, threadID, name, domain_queue, rows):
         threading.Thread.__init__(self)
         self.name = name
         self.threadID = threadID
         self.lock = threading.Lock()
         self.domain_queue = domain_queue
-        self.worksheet = worksheet
+        # xlsx 的生成收敛到 report 模块，这里只收集行数据
+        self.rows = rows
 
     def __get_Http_info__(self, threadLock):
         while True:
@@ -27,29 +29,19 @@ class NetThreads(threading.Thread):
             url_ip = domains["url_ip"]
             time.sleep(2)
             result = self.__get_request_result__(url_ip)
-            print("[+] Processing URL address："+url_ip)
+            with cores._progress_lock:
+                cores.sniff_done += 1
+            cores.progress("[*] Sniffing: %d done, current %s" % (cores.sniff_done, url_ip))
             if result != "error":
+                row = [cores.sniff_done, url_ip, domain, "", "", "", "", "", ""]
+                if result != "timeout":
+                    row[3] = result["status"]
+                    row[4] = result["des_ip"]
+                    row[5] = result["server"]
+                    row[6] = result["title"]
+                    row[7] = result["cdn"]
                 if self.lock.acquire(True):
-                    cores.excel_row = cores.excel_row + 1
-                    self.worksheet.cell(row=cores.excel_row,
-                                        column=1, value=cores.excel_row-1)
-                    self.worksheet.cell(row=cores.excel_row,
-                                        column=2, value=url_ip)
-                    self.worksheet.cell(row=cores.excel_row,
-                                        column=3, value=domain)
-
-                    if result != "timeout":
-                        self.worksheet.cell(
-                            row=cores.excel_row, column=4, value=result["status"])
-                        self.worksheet.cell(
-                            row=cores.excel_row, column=5, value=result["des_ip"])
-                        self.worksheet.cell(
-                            row=cores.excel_row, column=6, value=result["server"])
-                        self.worksheet.cell(
-                            row=cores.excel_row, column=7, value=result["title"])
-                        self.worksheet.cell(
-                            row=cores.excel_row, column=8, value=result["cdn"])
-
+                    self.rows.append(row)
                     self.lock.release()
 
     def __get_request_result__(self, url):
@@ -86,13 +78,17 @@ class NetThreads(threading.Thread):
                     result["title"] = title[0]
                 rsp.close()
                 return result
-        except requests.exceptions.InvalidURL as e:
+        except requests.exceptions.InvalidURL:
             return "error"
-        except requests.exceptions.ConnectionError as e1:
+        except requests.exceptions.ConnectionError:
             return "timeout"
-        except requests.exceptions.ReadTimeout as e2:
+        except requests.exceptions.ReadTimeout:
             return "timeout"
 
     def run(self):
         threadLock = threading.Lock()
-        self.__get_Http_info__(threadLock)
+        try:
+            self.__get_Http_info__(threadLock)
+        except Exception:
+            cores.thread_failed = True
+            cores.logexc("[!] NetThread %s aborted" % self.name)
