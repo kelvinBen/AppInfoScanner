@@ -1,3 +1,27 @@
+**语言/Language**: [简体中文](update.md) | [English](update_EN.md)
+
+### V1.0.10
+新增:
+- 新增用户工作区，首次运行自动部署配置与工具到 ~/Documents/AppInfoScanner
+- 新增TOML工作区配置(config.toml)，旧版config.py自动迁移
+- 新增敏感凭据检测(AK/SK 24规则集)与个人/企业敏感信息检测(9规则集，身份证/统一信用代码带校验位)
+- 新增敏感权限检测(Android 49项/iOS 22项，附中文风险说明)与组件识别(Android 20项/iOS 22项，附CVE说明)
+- 新增统一加固特征库(39厂商)，三路壳检测(application类名/文件签名/包名缺失)
+- 新增多协议/IPv4(带端口)/IPv6/本地回环服务(127.0.0.1+端口)提取，自动生成adb reverse抓包建议
+- 新增结构化报告(report.json/txt/xlsx)与集中任务日志(logs/，保留最新20个)
+- 新增macOS/Linux工具链自动安装(Java/adb/frida)与frida版本一致性管理(frida三件套显式锁定)
+- 新增多语言支持(中英双语，APPINFO_LANG环境变量)与单元测试套件(59项)
+修复:
+- 修复apktool 3.x反编译失败与baksmali输出目录错误
+- 修复macOS下strings漏取约90%字符串的问题
+- 修复目录级web扫描崩溃、损坏APK/IPA裸报错与dex反编译产物落错位置
+- 修复壳检测Flutter应用误报、0.0.0.0误杀同形IP与manifest权限贪婪匹配
+- 修复嗅探链路未定义变量、扫描线程队列竞态、历史文件判存错误与脱壳流程exit()绕过异常处理
+优化:
+- 优化路径拼接与外部命令为官方写法(os.path.join/subprocess参数列表)
+- 优化公共域名为两级过滤(126条后缀表)并跳过内网地址嗅探
+- 优化控制台输出(降噪/单行进度/[!]敏感前缀)与历史域名正则转义
+
 ### V1.0.9
 - 更新apktool为最新版本
 - 优化部分环节流程

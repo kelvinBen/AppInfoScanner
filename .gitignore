@@ -114,3 +114,14 @@ venv.bak/
 
 # add
 .idea/
+result_*.xlsx
+
+# 本地开发计划(不入库)
+开发计划.md
+# 本地开发与AI辅助目录/文件(不入库)
+.v2c/
+.video_agent/
+.zcode/
+.zcodeignore
+demo/
+AGENTS.md
