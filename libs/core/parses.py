@@ -75,6 +75,9 @@ class ParsesThreads(threading.Thread):
     def __ak_and_sk__(self, name, ak_rule, content):
         akAndSkList = re.compile(ak_rule).findall(content)
         for akAndSk in akAndSkList:
+            # 当规则包含分组时 findall 返回元组，取第一个非空分组作为匹配结果
+            if isinstance(akAndSk, tuple):
+                akAndSk = next((group for group in akAndSk if group), "")
             ak = ("[%s]-->:%s") % (name, akAndSk.strip())
             self.result_list.append(ak)
             print(("[+] [%s] AK or SK in %s:") % (name, akAndSk.strip()))
