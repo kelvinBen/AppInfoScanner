@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: kelvinBen
 # Github: https://github.com/kelvinBen/AppInfoScanner
+import os
 import sys
 import config
 import requests
@@ -17,7 +18,11 @@ class DownloadThreads(threading.Thread):
         threading.Thread.__init__(self)
         self.url = input_path
         self.types = types
-        self.cache_path = cache_path
+        # 防御路径穿越：文件名只保留路径末段并过滤 ..，固定写入下载目录
+        safe_name = os.path.basename(str(cache_path or file_name))
+        safe_name = safe_name.replace("..", "_")
+        download_dir = str(cores.download_path)
+        self.cache_path = os.path.join(download_dir, safe_name)
         self.file_name = file_name
 
     def __requset__(self):

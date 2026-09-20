@@ -5,11 +5,18 @@
 
 import re
 import os
+import subprocess
 import config
 import threading
 import libs.core as cores
 
 class ParsesThreads(threading.Thread):
+
+    # 单文件扫描大小上限：超过该大小的 js/html 等文件直接跳过，
+    # 避免非贪婪 findall 在超大文件上耗时失控阻塞整个扫描队列 (issue #27)
+    MAX_SCAN_SIZE = 10 * 1024 * 1024
+    # 单条提取字符串的最大长度，超长结果截断保存
+    MAX_STRING_LENGTH = 512
 
     def __init__(self, threadID, name, file_queue, result_dict, types):
         threading.Thread.__init__(self)
@@ -19,6 +26,8 @@ class ParsesThreads(threading.Thread):
         self.result_list = []
         self.result_dict = result_dict
         self.types = types
+        # 预编译过滤规则，避免对每条字符串重复编译
+        self._compiled_filter_strs = [re.compile(p) for p in config.filter_strs]
 
     def __regular_parse__(self):
         while True:
@@ -37,23 +46,30 @@ class ParsesThreads(threading.Thread):
                 self.result_dict[file_path] = result_set
 
     def __get_string_by_iOS__(self, file_path):
-        output_path = cores.output_path
         strings_path = cores.strings_path
-        temp = os.path.join(output_path, "temp.txt")
-        cmd_str = ('"%s" "%s" > "%s"') % (
-            str(strings_path), str(file_path), str(temp))
-        if os.system(cmd_str) == 0:
-            with open(temp, "r", encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-                for line in lines:
-                    self.__parse_string__(line)
+        # 直接捕获 strings 工具输出，替代临时文件中转与 shell 重定向
+        result = subprocess.run([str(strings_path), str(file_path)],
+                                capture_output=True)
+        if result.returncode == 0:
+            lines = result.stdout.decode('utf-8', 'ignore').splitlines()
+            for line in lines:
+                self.__parse_string__(line)
 
     def __get_string_by_file__(self, file_path):
+        # 大文件跳过：非贪婪正则在超大 js/html 上耗时失控，是扫描卡死的主要来源
+        try:
+            if os.path.getsize(file_path) > self.MAX_SCAN_SIZE:
+                print("[-] Skip large file (>{}MB): {}".format(
+                    self.MAX_SCAN_SIZE // (1024 * 1024), file_path))
+                return
+        except OSError:
+            return
         with open(file_path, "r", encoding="utf8", errors='ignore') as f:
             file_content = f.read()
-            # 获取到所有的字符串
+            # 获取到所有的字符串（finditer 惰性迭代 + 截断超长结果，替代一次性 findall）
             pattern = re.compile(r'\"(.*?)\"')
-            results = pattern.findall(file_content)
+            results = [match.group(1)[:self.MAX_STRING_LENGTH]
+                       for match in pattern.finditer(file_content)]
 
             # 搜素AK和SK信息,由于iOS的逻辑处理效率过慢暂时忽略对iOS的AK检测
             if not (".js" == file_path[-3:] and self.types == "iOS"):
@@ -83,9 +99,8 @@ class ParsesThreads(threading.Thread):
             print(("[+] [%s] AK or SK in %s:") % (name, akAndSk.strip()))
 
     def __parse_string__(self, result):
-        # 通过正则筛选需要过滤的字符串
-        for filter_str in config.filter_strs:
-            filter_str_pat = re.compile(filter_str)
+        # 通过预编译的规则筛选需要过滤的字符串
+        for filter_str_pat in self._compiled_filter_strs:
             filter_resl = filter_str_pat.findall(result)
             # 过滤掉未搜索到的内容
             if len(filter_resl) != 0:
