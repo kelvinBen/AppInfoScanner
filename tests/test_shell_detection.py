@@ -52,7 +52,8 @@ class TestShellDetection(unittest.TestCase):
         task = self.new_task()
         task.__shell_test__(tmp)
         self.assertTrue(task.shell_flag)
-        self.assertEqual(self.unpack_called, [1])
+        self.assertTrue(task.shell_confirmed)  # 签名已确认
+        self.assertEqual(self.unpack_called, [])  # 不再自动脱壳
         self.assertTrue(any("360加固" in line for line in task.shell_report))
 
     def test_class_gate_without_signature(self):
@@ -71,7 +72,7 @@ class TestShellDetection(unittest.TestCase):
         task = self.new_task()
         task.__shell_test__(tmp)
         self.assertTrue(task.shell_flag)
-        self.assertEqual(self.unpack_called, [1])
+        self.assertEqual(self.unpack_called, [])  # 不再自动脱壳
 
     def test_multidex_package_found(self):
         tmp = tempfile.mkdtemp()

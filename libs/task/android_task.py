@@ -19,11 +19,14 @@ from libs.core import provision
 
 class AndroidTask(object):
 
-    def __init__(self, path, package):
+    def __init__(self, path, package, unpack=False, prefer_dump=None):
         self.path = path
         self.package = package
+        self.unpack_enabled = unpack
+        self.prefer_dump = prefer_dump
         self.file_queue = Queue()
         self.shell_flag = False
+        self.shell_confirmed = False  # 厂商签名已确认(脱壳前置条件)
         self.packagename = ""
         self.comp_list = []
         self.shell_report = []
@@ -52,59 +55,111 @@ class AndroidTask(object):
                 raise Exception(cores.i18n.t(
                     "Retrieval of this file type is not supported. Select APK file or DEX file."))
 
+        # 脱壳决策: --prefer-dump 直接扫描已有dump; --unpack 才走脱壳流程;
+        # 壳确认但未指定 --unpack 时仅提示不动设备(防止破坏渗透现场)
+        if getattr(self, "prefer_dump", None):
+            cores.logp(cores.i18n.t("[*] Scanning pre-dumped DEX from: {}", self.prefer_dump))
+            self.__decode_dir__(self.prefer_dump)
+        elif self.shell_confirmed and getattr(self, "unpack_enabled", False):
+            if not self.__android_unpack__():
+                cores.logp(cores.i18n.t(
+                    "[*] Unpack failed, continuing with static scan of decoded artifacts"))
+        elif self.shell_confirmed:
+            cores.logp("[!] Shell confirmed but --unpack not specified; skipping device interaction")
+            cores.logp("[*] Tip: rerun with --unpack to unpack, or --prefer-dump <dir> to scan existing DEX dumps")
+
         return {"comp_list": self.comp_list, "shell_flag": self.shell_flag, "file_queue": self.file_queue,
                 "packagename": self.packagename, "file_identifier": self.file_identifier,
                 "permissions": self.permissions, "shell_report": self.shell_report}
 
+    UNPACK_TIMEOUT = 120  # 各阶段超时(秒), 反调试拦截时避免无限等待
+
+    # 脱壳入口: 失败不终止任务, 降级到壳payload静态扫描(payload明文区有真实资产)
     def __android_unpack__(self):
         cores.logp(cores.i18n.t("[*] unpacking"))
+        try:
+            return self.__unpack_pipeline__()
+        except subprocess.TimeoutExpired as e:
+            cores.logp(cores.i18n.t(
+                "[-] Unpack stage timed out after {}s (suspected anti-debug or device issue)", 
+                e.timeout or self.UNPACK_TIMEOUT))
+            cores.logp(cores.i18n.t("[*] Falling back to static scan of shell payload"))
+            return False
+        except FileNotFoundError as e:
+            cores.logp("[-] Unpack tool missing: {}".format(e))
+            cores.logp(cores.i18n.t("[*] Falling back to static scan of shell payload"))
+            return False
+        except Exception as e:
+            cores.logp("[-] Unpack failed: {}".format(e))
+            cores.logp(cores.i18n.t("[*] Falling back to static scan of shell payload"))
+            return False
+
+    # 脱壳各阶段: 安装 -> 推送server -> 启动 -> dexdump, 每阶段带超时
+    def __unpack_pipeline__(self):
         adb_path = provision.ensure_adb()
         if not adb_path:
-            raise Exception("adb not available; install android platform-tools first.")
+            cores.logp("[-] adb not available, cannot unpack")
+            return False
+        timeout = self.UNPACK_TIMEOUT
         device_tmp_dir = "/data/local/tmp"
+
         cores.logp(cores.i18n.t("[*] Install the APK"))
-        # 参数列表方式执行，宿主机路径含空格不会被 shell 拆分；
-        # su -c 的内部命令是设备侧 shell 命令串，作为单参数整体下发
-        if subprocess.call([adb_path, "install", self.path]) != 0:
+        cores.logf("[CMD] {} install {}".format(adb_path, self.path))
+        if subprocess.call([adb_path, "install", self.path], timeout=timeout) != 0:
             cores.logp(cores.i18n.t("[-] We can't install the APP"))
-            raise Exception("Failed to install the APK on the device.")
+            return False
 
         # 版本一致性: 以本地 frida core 为基准获取匹配的 frida-server(自带/下载)
         cores.logp(cores.i18n.t("Push Frida Server"))
         abi = subprocess.run([adb_path, "shell", "getprop", "ro.product.cpu.abi"],
-                             capture_output=True, text=True).stdout.strip()
+                             capture_output=True, text=True, timeout=30).stdout.strip()
         server_path = provision.ensure_frida_server(abi, adb_path)
         if not server_path:
-            raise Exception("No version-matched frida-server available (see run.log).")
+            return False
         server_name = os.path.basename(server_path)
 
         cores.logp(cores.i18n.t("[*] Running Frida Server"))
-        if not (subprocess.call([adb_path, "push", server_path, device_tmp_dir]) == 0 and
-                subprocess.call([adb_path, "shell", "su", "-c",
-                                 "chmod 755 {0}/{1}".format(device_tmp_dir, server_name)]) == 0 and
-                subprocess.call([adb_path, "shell", "su", "-c", "setenforce 0"]) == 0 and
-                subprocess.call([adb_path, "shell", "su", "-c",
-                                 "{0}/{1} &".format(device_tmp_dir, server_name)]) == 0):
-            cores.logp(cores.i18n.t("[-] Running failed, please check the error in terminal"))
-            raise Exception("Frida server failed to start, check the terminal output above.")
+        cores.logf("[CMD] {} push {} {}".format(adb_path, server_path, device_tmp_dir))
+        if subprocess.call([adb_path, "push", server_path, device_tmp_dir],
+                           timeout=timeout) != 0:
+            cores.logp(cores.i18n.t("[-] Failed to push frida-server"))
+            return False
+        for cmd_desc, cmd in [
+            ("chmod", [adb_path, "shell", "su", "-c",
+                       "chmod 755 {0}/{1}".format(device_tmp_dir, server_name)]),
+            ("setenforce", [adb_path, "shell", "su", "-c", "setenforce 0"]),
+            ("start", [adb_path, "shell", "su", "-c",
+                       "{0}/{1} &".format(device_tmp_dir, server_name)]),
+        ]:
+            cores.logf("[CMD] " + " ".join(cmd))
+            if subprocess.call(cmd, timeout=timeout) != 0:
+                cores.logp(cores.i18n.t(
+                    "[-] Frida server {} failed (possible anti-debug kill)", cmd_desc))
+                return False
         cores.logp(cores.i18n.t("[*] Frida Server started"))
 
-        # aapt 优先 PATH(POSIX 通常未装)，缺位时回退用 manifest 已解析的包名
+        # aapt 优先 PATH，缺位时回退用 manifest 已解析的包名
         package_name = self.packagename
         aapt = shutil.which("aapt") or shutil.which("aapt2")
         if aapt:
             cores.logf("[CMD] {} dump badging {}".format(aapt, self.path))
             result = subprocess.run([aapt, "dump", "badging", self.path],
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True, timeout=30)
             match = re.compile(r"package: name='(\S+)'").match(result.stdout or "")
             if match:
                 package_name = match.group(1)
         if not package_name:
-            raise Exception(cores.i18n.t("can't get the app info"))
+            cores.logp("[-] Cannot determine package name for frida-dexdump")
+            return False
         cores.logp(package_name)
-        if subprocess.call(["frida-dexdump", "-U", "-f", package_name]) != 0:
-            cores.logp(cores.i18n.t("[-] An error occurred in the unpack"))
-            raise Exception("frida-dexdump unpack failed.")
+
+        cores.logf("[CMD] frida-dexdump -U -f {}".format(package_name))
+        if subprocess.call(["frida-dexdump", "-U", "-f", package_name],
+                           timeout=timeout * 2) != 0:
+            cores.logp(cores.i18n.t(
+                "[-] frida-dexdump failed (target process may be killed by anti-debug)"))
+            return False
+        return True
 
     def __decode_file__(self, file_path):
         apktool_path = str(cores.apktool_path)
@@ -233,16 +288,41 @@ class AndroidTask(object):
                 zout.writestr(item, data)
         os.replace(temp_path, apk_path)
 
-    # 分解dex
+    # 分解dex: baksmali返回非零不等于无产物(依赖错误只影响部分类), 有smali就继续扫
     def __decode_dex__(self, file_path, backsmali_path, output_path):
-        # baksmali 的 -o 缺省写入 cwd 下的 out，必须显式指向本次扫描的输出目录
         cores.logf("[CMD] java -jar {} d {} -o {}".format(backsmali_path, file_path, output_path))
-        if subprocess.call(["java", "-jar", backsmali_path, "d", file_path, "-o", output_path]) == 0:
+        result = subprocess.call(["java", "-jar", backsmali_path, "d", file_path, "-o", output_path])
+        if result == 0:
+            self.__get_scanner_file__(output_path)
+            return
+        # 失败: 先尝试 fix_magic 修复 dex 头(脱壳产物常见 CheckSum 损坏)
+        cores.logp(cores.i18n.t("[*] Decompilation failed, trying fix_magic repair..."))
+        if self.__repair_dex_file__(file_path):
+            cores.logp(cores.i18n.t("[*] Repair applied, retrying decompilation"))
+            result = subprocess.call(["java", "-jar", backsmali_path, "d", file_path, "-o", output_path])
+            if result == 0:
+                self.__get_scanner_file__(output_path)
+                return
+        # 修复无效或重试仍失败: 检查是否有部分产物(依赖错误只影响部分类)
+        if os.path.isdir(output_path) and any(
+                name.endswith(".smali") for _, _, files in os.walk(output_path) for name in files):
+            cores.logp("[!] Partial decompilation succeeded (some classes may have dependency errors)")
             self.__get_scanner_file__(output_path)
         else:
             cores.logp(
                 "[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
             raise Exception("{}: {}".format(file_path, cores.i18n.t("Decompilation failed")))
+
+    # 修复独立dex文件的头部(魔数/大小/校验和), 脱壳产物常见损坏
+    def __repair_dex_file__(self, file_path):
+        from libs.core import fix_magic
+        status = fix_magic.detect_dex(file_path)
+        if status and not all((status["magic_ok"], status["size_ok"],
+                               status["checksum_ok"], status["signature_ok"])):
+            fix_magic.fix_dex(file_path)
+            cores.logf("[REPAIR] dex header fixed: " + file_path)
+            return True
+        return False
 
     # 初始化检测文件信息
     def __scanner_file_by_apktool__(self, output_path):
@@ -279,23 +359,72 @@ class AndroidTask(object):
                 for component, desc in components:
                     comp = component.replace(".", "/")
                     if comp in dir_file_path:
-                        entry = "{} ({})".format(component, desc) if desc else component
+                        # 尝试提取组件版本号并给出受影响结论
+                        version_note = self.__extract_component_version__(
+                            component, dir_file_path)
+                        base = "{} ({})".format(component, desc) if desc else component
+                        entry = base + version_note if version_note else base
                         if entry not in self.comp_list:
                             self.comp_list.append(entry)
 
+    # 从smali提取组件版本号, 对照CVE影响范围表给出受影响/安全结论
+    def __extract_component_version__(self, component, smali_path):
+        version_rules = getattr(cores.config, "component_versions", {})
+        rule = version_rules.get(component)
+        if not rule:
+            return ""
+        try:
+            with open(smali_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read(512 * 1024)  # 只读前 512KB
+            # 方式1: version_field (如 fastjson 的 Version.VERSION)
+            ver = None
+            if rule.get("version_field"):
+                pat = re.compile(
+                    r'const-string.*"' + re.escape(rule["version_field"]) + r'".*?"([\d.]+)"')
+                m = pat.search(content)
+                if m:
+                    ver = m.group(1)
+            if not ver and rule.get("version_pattern"):
+                m = re.compile(rule["version_pattern"]).search(content)
+                if m:
+                    ver = m.group(1)
+            if not ver:
+                # 兜底: 取文件前 8KB 中的第一个 x.y.z 串
+                m = re.compile(r'"(\d+\.\d+\.\d+)"').search(content[:8192])
+                if m:
+                    ver = m.group(1)
+            if not ver:
+                return ""
+            safe = rule.get("safe_above", "")
+            if safe and self.__version_lt__(ver, safe):
+                return " [v{}, {}]".format(ver, rule.get("cve", "受影响"))
+            return " [v{}, 安全]".format(ver)
+        except Exception:
+            return ""
+
+    # 语义化版本比较: a < b 返回 True
+    @staticmethod
+    def __version_lt__(a, b):
+        pa = [int(x) for x in a.split(".") if x.isdigit()]
+        pb = [int(x) for x in b.split(".") if x.isdigit()]
+        for i in range(max(len(pa), len(pb))):
+            va = pa[i] if i < len(pa) else 0
+            vb = pb[i] if i < len(pb) else 0
+            if va < vb:
+                return True
+            if va > vb:
+                return False
+        return False
+
+    # 按application类名定位加固厂商
     def __match_shell_vendor__(self, app_class):
-        """在统一特征库中按 application 类名定位加固厂商(检测门控入口)。"""
         for vendor, info in cores.config.shell_vendors.items():
             if app_class in info.get("classes", []):
                 return vendor
         return None
 
+    # 经验规则: 壳加密业务dex后, 原始包名在dex包结构中缺失即疑似加固
     def __package_in_dex__(self, output, package_name):
-        """经验规则的核心判定：应用包名是否存在于任一 dex 的包结构中。
-
-        壳会加密业务 dex，原始包名(如 com.foo.bar 对应 smali/com/foo/bar/)在
-        反编译产物中缺失即疑似加固； multidex 下逐个 smali*/ 目录检查。
-        """
         pkg_dir = package_name.replace(".", "/")
         for entry in os.listdir(output):
             if entry.startswith("smali") and os.path.isdir(os.path.join(output, entry)):
@@ -303,12 +432,8 @@ class AndroidTask(object):
                     return True
         return False
 
+    # 壳文件特征确认; vendor=None 时跨厂商定位(包名缺失门控)
     def __confirm_shell__(self, output, vendor=None):
-        """门控命中后用 so/assets 文件特征确认；vendor=None 时跨厂商定位(包名缺失门控)。
-
-        文件签名确认成功才触发自动脱壳(与旧版签名扫描触发脱壳的语义一致)；
-        仅类名命中而特征缺失时只置 shell_flag，不触发。
-        """
         if vendor:
             candidates = {vendor: cores.config.shell_vendors.get(vendor, {})}
         else:
@@ -333,7 +458,8 @@ class AndroidTask(object):
             msg = "Shell file signatures confirmed ({}): {}".format(", ".join(matched), ", ".join(hits))
             cores.logp("[*] " + msg)
             self.shell_report.append(msg)
-            self.__android_unpack__()
+            # 不再直接调 __android_unpack__: 由 BaseTask 根据 --unpack 决定
+            self.shell_confirmed = True
         else:
             msg = "Shell suspected but no vendor signature found in decoded output"
             cores.logp("[*] " + msg)

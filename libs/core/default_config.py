@@ -14,8 +14,12 @@
 # 在 TOML 中落为 [filter_ak_map.<规则集名>] 下的 rules 数组，加载时还原。
 import copy
 
+# 配置格式版本: 跨版本升级时自动迁移用户 config.toml
+CONFIG_VERSION = "1.0.11"
 
 DEFAULTS = {
+    # 配置格式版本(工具自动管理)
+    "config_version": CONFIG_VERSION,
     # 组件识别规则：包名片段 -> 组件与风险说明（按 smali 路径匹配）
     "filter_components": {
         # JSON 反序列化 RCE 家族
@@ -151,9 +155,8 @@ DEFAULTS = {
     "filter_ak_map": {
         # 国内云
         "Aliyun_OSS": [
-            r'.*accessKeyId.*".*?"',
-            r'.*accessKeySecret.*".*?"',
-            r'.*secret.*".*?"',
+            r'(?i)(?:aliyun|ali|oss)[_-]?(?:access[_-]?key[_-]?id|access[_-]?key[_-]?secret)[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z]{10,}[\'"]',
+            r'(?i)(?:aliyun|ali|oss)[_-]?secret[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z]{20,}[\'"]',
             r'LTAI[A-Za-z0-9]{12,20}',
         ],
         "Tencent_Cloud": [
@@ -229,10 +232,129 @@ DEFAULTS = {
             r'://[A-Za-z0-9_\-]+:[A-Za-z0-9_@!#$%^&*\-]{3,}@',
         ],
         "Generic_API_Key": [
-            r'(?i)api[_-]?key[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z\-_]{16,}[\'"]',
+            r'(?i)(?:api[_-]?key|apikey|app[_-]?key|access[_-]?key)[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z\-_]{8,}[\'"]',
         ],
         "Generic_Secret": [
-            r'(?i)(?:secret|password|passwd)[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z\-_]{16,}[\'"]',
+            r'(?i)(?:secret|password|passwd|pwd|pass)[a-z_-]*[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z\-_!@#$%^&*]{8,}[\'"]',
+        ],
+        "Generic_Token": [
+            r'(?i)token[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z\-_.=+]{8,}[\'"]',
+        ],
+        "Cloud_OSS_Key": [
+            r'(?i)(?:oss|cos|s3|storage)[_-]?(?:access[_-]?(?:key|id)|secret|key)[a-z]*[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z\-_]{8,}[\'"]',
+        ],
+        # 国内 SDK 密钥(移动端渗透高频目标)
+        "WeChat_SDK": [
+            r'(?i)(?:wx|wechat|weixin)[_-]?(?:app[_-]?secret|secret)[\'"]?\s*[:=]\s*[\'"][0-9a-f]{32}[\'"]',
+            r'(?i)(?:app[_-]?id)[\'"]?\s*[:=]\s*[\'"]wx[0-9a-f]{16}[\'"]',
+        ],
+        "Alipay_SDK": [
+            r'(?i)(?:alipay|ali)[_-]?(?:app[_-]?id|pid|merchant[_-]?id)[\'"]?\s*[:=]\s*[\'"]\d{16}[\'"]',
+            r'(?i)(?:alipay|ali)[_-]?(?:private[_-]?key|secret)[\'"]?\s*[:=]\s*[\'"]MIIC[a-zA-Z0-9+/=]{50,}[\'"]',
+        ],
+        "Weibo_SDK": [
+            r'(?i)(?:weibo|sina)[_-]?(?:app[_-]?key|secret)[\'"]?\s*[:=]\s*[\'"][0-9a-f]{10,32}[\'"]',
+        ],
+        # 数据库连接串(带认证信息)
+        "Database_Auth": [
+            r'(?i)(?:mongo(?:db)?|postgres(?:ql)?|mysql|mariadb|amqp|rabbitmq)://[^\s"\':]+:[^\s"\']+@[^\s"\']+',
+            r'(?i)redis://:[^\s"\']+@',  # redis 无用户名仅密码
+        ],
+        # 云厂商补充
+        "Huawei_Cloud": [
+            r'(?i)(?:huawei|hw)[_-]?(?:ak|access[_-]?key)[\'"]?\s*[:=]\s*[\'"][A-Z0-9]{10,}[\'"]',
+        ],
+        "Azure_Storage": [
+            r'AccountKey=[A-Za-z0-9+/=]{50,}',
+        ],
+        "AWS_SecretKey": [
+            r'(?i)aws[_-]?secret[_-]?access[_-]?key[\'"]?\s*[:=]\s*[\'"][A-Za-z0-9/+=]{40}[\'"]',
+        ],
+        "Sentry_DSN": [
+            r'https://[0-9a-f]{32}@[0-9a-f]{16}\.ingest\.sentry\.io',
+        ],
+        # AI 服务密钥(大模型 API Key, 高价值目标)
+        "AI_OpenAI": [
+            r'sk-(?!ant-)(?:proj-)?[a-zA-Z0-9_-]{20,}',
+        ],
+        "AI_Anthropic": [
+            r'sk-ant-(?:api03-)?[a-zA-Z0-9_-]{20,}',
+        ],
+        "AI_HuggingFace": [
+            r'hf_[a-zA-Z0-9]{20,}',
+        ],
+        "AI_DashScope": [
+            r'(?i)(?:dashscope|qwen|tongyi)[_-]?(?:key|secret)[\'"]?\s*[:=]\s*[\'"]sk-[a-zA-Z0-9]{10,}[\'"]',
+        ],
+        "AI_GLM": [
+            r'(?i)(?:zhipu|glm|chatglm)[_-]?(?:key|api[_-]?key)[\'"]?\s*[:=]\s*[\'"]\w{6,12}\.[a-zA-Z0-9]{8,}[\'"]',
+        ],
+        "AI_Baidu_ERNIE": [
+            r'(?i)(?:ernie|wenxin|baidu[_-]?ai|千帆)[_-]?(?:secret[_-]?key)[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z]{20,}[\'"]',
+        ],
+        # 地图服务密钥(国内移动端高频)
+        "Map_AMap": [
+            r'(?i)(?:amap|gaode|高德)[_-]?(?:key|api[_-]?key|secret)[\'"]?\s*[:=]\s*[\'"][0-9a-f]{32}[\'"]',
+        ],
+        "Map_Baidu": [
+            r'(?i)(?:bmap|baidu[_-]?map|百度地图)[_-]?(?:ak|api[_-]?key|sn)[\'"]?\s*[:=]\s*[\'"][0-9a-zA-Z]{24}[\'"]',
+        ],
+        "Map_Tencent": [
+            r'(?i)(?:qq[_-]?map|tencent[_-]?map|腾讯地图)[_-]?(?:key|sk)[\'"]?\s*[:=]\s*[\'"][0-9A-Z]{26,32}[\'"]',
+        ],
+        "Map_Box": [
+            r'(?:pk|sk)\.eyJ[a-zA-Z0-9._-]{40,}',
+        ],
+        # 国内大模型补充(与 OpenAI 同构 sk- 前缀, 按服务名上下文区分)
+        "AI_DeepSeek": [
+            r'(?i)deepseek[_-]?(?:key|api[_-]?key|token)[\'"]?\s*[:=]\s*[\'"]sk-[a-zA-Z0-9]{20,}[\'"]',
+            r'api\.deepseek\.com',
+        ],
+        "AI_Moonshot": [
+            r'(?i)(?:moonshot|kimi)[_-]?(?:key|api[_-]?key|token)[\'"]?\s*[:=]\s*[\'"]sk-[a-zA-Z0-9]{20,}[\'"]',
+            r'api\.moonshot\.cn',
+        ],
+        "AI_MiniMax": [
+            r'(?i)minimax[_-]?(?:key|api[_-]?key|token)[\'"]?\s*[:=]\s*[\'"]eyJ[a-zA-Z0-9._-]{20,}[\'"]',
+            r'api\.minimaxi?\.chat',
+        ],
+        "AI_Volcengine": [
+            r'(?i)(?:volcengine|doubao|huoshan|ark)[_-]?(?:key|api[_-]?key|token|secret)[\'"]?\s*[:=]\s*[\'"][a-zA-Z0-9\-_.]{16,}[\'"]',
+            r'ark\.cn-[a-z]+\.volces\.com',
+        ],
+        "AI_SiliconCloud": [
+            r'(?i)silicon(?:cloud|flow)[_-]?(?:key|api[_-]?key)[\'"]?\s*[:=]\s*[\'"]sk-[a-zA-Z0-9]{20,}[\'"]',
+            r'api\.siliconflow\.cn',
+        ],
+        "AI_Iflytek_Spark": [
+            r'(?i)(?:spark|xunfei|iflytek)[_-]?(?:api[_-]?key|api[_-]?secret)[\'"]?\s*[:=]\s*[\'"][0-9a-f]{16,}[\'"]',
+        ],
+        # 海外推理平台(独特前缀)
+        "AI_Groq": [
+            r'gsk_[a-zA-Z0-9]{20,}',
+        ],
+        "AI_OpenRouter": [
+            r'sk-or-(?:v1-)?[a-zA-Z0-9-]{20,}',
+        ],
+        "AI_Together": [
+            r'tgp_[a-zA-Z0-9_]{20,}',
+        ],
+        # AI 服务端点(识别应用连接了哪些 AI 后端)
+        "AI_Endpoints": [
+            r'https?://api\.(?:openai|deepseek|anthropic|groq|together)\.com[/\w.-]*',
+            r'https?://api\.(?:moonshot\.cn|minimaxi?\.chat|siliconflow\.cn)[/\w.-]*',
+            r'https?://dashscope\.aliyuncs\.com[/\w.-]*',
+            r'https?://ark\.cn-[a-z]+\.volces\.com[/\w.-]*',
+            r'https?://open\.bigmodel\.cn[/\w.-]*',
+            r'https?://aip\.baidubce\.com[/\w.-]*',
+            r'https?://api\.minimax\.chat[/\w.-]*',
+        ],
+        # AI 编程工具密钥(Cursor/Windsurf/Copilot 等)
+        "Coding_AI": [
+            r'(?i)(?:cursor|windsurf|codeium|tabnine|copilot|jetbrains[_-]?ai|cody|sourcegraph|augment)[_-]?(?:key|token|api[_-]?key)[\'"]?\s*[:=]\s*[\'"][a-zA-Z0-9\-_.=+]{16,}[\'"]',
+        ],
+        "Firebase_Config": [
+            r'(?i)firebase[_-]?(?:api[_-]?key|config)[\'"]?\s*[:=]\s*[\'"][A-Za-z0-9\-_]{30,}[\'"]',
         ],
     },
     # 个人/企业敏感信息规则集：{规则集名: [正则, ...]}（参考 HaE 规则分类）
@@ -266,7 +388,73 @@ DEFAULTS = {
         "MAC_Address": [
             r'(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])',
         ],
+        "Passport_CN": [
+            r'(?:护照|passport|护照号)[：:\s]{0,4}([EeGg]\d{8})(?!\d)',
+        ],
+        "VIN": [
+            r'(?:vin|车架号|车架)[：:\s]{0,4}([A-HJ-NPR-Z0-9]{17})(?![A-Z0-9])',
+        ],
+        "IMEI": [
+            r'(?:imei|device[_-]?id|设备号)[：:\s]{0,4}(\d{15})(?!\d)',
+        ],
+        "Phone_Intl": [
+            r'(?:tel|phone|mobile|电话|手机)[：:\s]{0,4}(\+\d{1,3}[\s\d\-]{8,16})(?![\d])',
+        ],
+        "Address_CN": [
+            r'(?:地址|住址|收货地址|address)[：:\s]{0,4}([\u4e00-\u9fa5]{2,6}(?:省|市|区|县|镇|乡|村|路|街|道|号|楼|室)[\u4e00-\u9fa50-9A-Za-z\-]{4,40})',
+        ],
     },
+    # 组件版本影响范围表: 从 smali 提取版本号后对照此表判断是否受已知 CVE 影响
+    # version_field: smali 中的版本常量字段名(如 fastjson 的 VERSION)
+    # version_pattern: 备用版本提取正则(如 bcprov 的 "bouncycastle 1.68" 模式)
+    # safe_above: 该 CVE 的修复版本, 低于此版本判定为受影响
+    # 从 smali 提取版本号后对照此表给出"受影响/不受影响"结论
+    "component_versions": {
+        "com.alibaba.fastjson": {
+            "version_field": "VERSION",  # smali 中 Version.VERSION 字段
+            "safe_above": "1.2.83",
+            "cve": "CVE-2022-25845 (autoType RCE)",
+            "safe_note": ">=1.2.83 已修复 autoType 绕过",
+        },
+        "org.bouncycastle": {
+            "version_pattern": r'bouncycastle[^0-9]*(\d+\.\d+[\.\d]*)',
+            "safe_above": "1.74",
+            "cve": "CVE-2023-33201 (LDAP injection)",
+            "safe_note": ">=1.74 已修复",
+        },
+        "org.apache.logging.log4j": {
+            "version_field": "VERSION",
+            "safe_above": "2.17.0",
+            "cve": "CVE-2021-44228 (Log4Shell)",
+            "safe_note": ">=2.17.0 已修复 JNDI 注入",
+        },
+    },
+    # USCC(统一社会信用代码)格式校验数据:
+    # 首位必须是合法的登记管理部门码, 次位必须是合法的机构类别码
+    # 用于拒绝恰好通过校验位计算但实际不是信用代码的 hex 串
+    "uscc_valid_codes": {
+        "dept": "123456789Y",  # 1机构编制 2外交 3教育 4公安 5民政 6司法 7交通 8文化 9工商 Y其他
+        "type": "123193",       # 1企业 2个体 3农民专业合作 9其他 1(企业子) 3(事业子) 9(其他子)
+    },
+    # PII 测试向量黑名单: 密码学库(BC/听云/JDK/RFC)的官方测试数据。
+    # 这些数字串恰好通过银行卡 Luhn 校验或手机号段校验, 但不是真实凭据。
+    # 命中黑名单的 PII 直接丢弃不进报告; 不在名单但来源可疑的降权标注。
+    "pii_test_vectors": [
+        # BouncyCastle GOST3411 / LongDigest 测试向量
+        "6272217099150286", "15258229321",
+        # JDK MessageDigest 测试向量(常见)
+        "6162636465666768696a6b6c6d6e6f70",
+        # 常见 digest 测试向量前缀(匹配到的标记为疑似)
+        "000102030405060708090a0b0c0d0e0f",
+        "d41d8cd98f00b204e9800998ecf8427e",
+        "0cc175b9c0f1b6a831c399e269772661",
+        # RFC 2202 HMAC 测试向量
+        "b617318655057264e28bc0b6fb378c8e",
+        "effcdf6ae5eb2fa2d27416d5f184df9c",
+        # RFC 4231 HMAC-SHA 测试向量
+        "b0344c61d8db38535ca8afceaf0bf12b",
+        "5bdcc146bf60754e6a042426089575c7",
+    ],
     # Android 加固特征库：厂商 -> {classes: 替换后的application类名,
     # so: lib下的so文件特征, assets: assets/文件特征}。检测流程: manifest 中
     # application 类名先行匹配(门控)，命中厂商后才用该厂商的文件特征确认。
@@ -989,11 +1177,15 @@ def dump_config(config_map):
         value = config_map[key]
         if isinstance(value, dict):
             if value and all(isinstance(v, dict) for v in value.values()):
-                # dict-of-dicts(shell_vendors) 每个子键落为 [节.厂商] 下的多个数组键
+                # dict-of-dicts(shell_vendors/component_versions) 子键:
+                # list 值 -> TOML 数组; str/数值 -> TOML 标量
                 for name, subs in value.items():
                     lines.append("[" + _toml_key(key) + "." + _toml_key(name) + "]")
-                    for kind, arr in subs.items():
-                        lines.append(_toml_key(kind) + " = " + _toml_array(arr))
+                    for kind, val in subs.items():
+                        if isinstance(val, list):
+                            lines.append(_toml_key(kind) + " = " + _toml_array(val))
+                        else:
+                            lines.append(_toml_key(kind) + " = " + _toml_str(str(val)))
                     lines.append("")
             elif value and all(isinstance(v, list) for v in value.values()):
                 for name, rules in value.items():
@@ -1015,6 +1207,38 @@ def dump_config(config_map):
     return "\n".join(lines).rstrip() + "\n"
 
 
+# 版本迁移注册表
+MIGRATIONS = {
+    # 示例: "1.0.12": [_remove_filter_no_prefix("^127\\.")],
+}
+
+
+# 语义化版本比较: a < b 返回 True
+def version_lt(a, b):
+    pa = [int(x) for x in a.split(".") if x.isdigit()]
+    pb = [int(x) for x in b.split(".") if x.isdigit()]
+    for i in range(max(len(pa), len(pb))):
+        va = pa[i] if i < len(pa) else 0
+        vb = pb[i] if i < len(pb) else 0
+        if va < vb:
+            return True
+        if va > vb:
+            return False
+    return False
+
+
+# 按版本顺序执行迁移; 返回(迁移后config, 是否有变更)
+def migrate_config(config, from_version):
+    changed = False
+    for target_ver in sorted(MIGRATIONS.keys()):
+        if version_lt(from_version, target_ver):
+            for fn in MIGRATIONS[target_ver]:
+                config = fn(config)
+            changed = True
+    config["config_version"] = CONFIG_VERSION
+    return config, changed
+
+
 def generate_default_toml():
     """生成带说明注释的默认 config.toml 文本。
 
@@ -1024,9 +1248,9 @@ def generate_default_toml():
     parts = [
         "# AppInfoScanner 工作区配置",
         "# 修改后无需重启以外的操作，下次运行即生效；删除本文件并重新运行可恢复默认。",
-        "",
     ]
-    ordered = ["filter_components", "ios_components", "filter_strs", "filter_no", "filter_no_domains",
+    _DOC["config_version"] = ["配置格式版本(工具自动管理, 勿手动修改)"]
+    ordered = ["config_version", "filter_components", "ios_components", "filter_strs", "filter_no", "filter_no_domains",
                "shell_vendors", "apk_permissions", "ios_permissions",
                "web_file_suffix", "sniffer_filter", "method",
                "filter_ak_map", "filter_pii_map", "headers", "data"]
@@ -1043,17 +1267,42 @@ def generate_default_toml():
     return "\n".join(parts).rstrip() + "\n"
 
 
+# 需要子键级合并的规则库键(用户子键优先, 代码新增子键自动保留)
+DEEP_MERGE_DICT_KEYS = (
+    "filter_ak_map", "filter_pii_map",      # 凭据/PII 规则集
+    "shell_vendors",                         # 加固特征库
+    "filter_components", "ios_components",   # 组件
+    "apk_permissions", "ios_permissions",    # 权限
+    "uscc_valid_codes",                      # 格式校验
+    "component_versions",                    # 版本影响
+)
+# 需要并集合并的列表键(用户列表 + 代码新增项)
+UNION_MERGE_LIST_KEYS = (
+    "filter_strs", "filter_no", "filter_no_domains",
+    "web_file_suffix", "sniffer_filter", "pii_test_vectors",
+)
+# TOML 中 {规则集: [正则...]} 落为 [表.规则集名] 下的 rules 数组
+RULE_SET_KEYS = ("filter_ak_map", "filter_pii_map")
+
+
+# 把 tomllib 解析出的 dict 合并到默认值上(深合并, 不丢新增规则)
 def merge_over_defaults(parsed):
-    """把 tomllib 解析出的 dict 合并到默认值的深拷贝上，并还原规则集表的形状。"""
-    # TOML 中 {规则集: [正则...]} 落为 [表.规则集名] 下的 rules 数组，加载时还原
-    RULE_SET_KEYS = ("filter_ak_map", "filter_pii_map")
     merged = copy.deepcopy(DEFAULTS)
     for key, value in parsed.items():
-        if key in RULE_SET_KEYS and isinstance(value, dict):
-            merged[key] = {name: sub.get("rules", []) if isinstance(sub, dict) else sub
-                           for name, sub in value.items()}
+        if key in DEEP_MERGE_DICT_KEYS and isinstance(value, dict) and isinstance(merged.get(key), dict):
+            for name, sub in value.items():
+                if key in RULE_SET_KEYS:
+                    rules = sub.get("rules", []) if isinstance(sub, dict) else sub
+                    merged[key][name] = rules
+                elif isinstance(sub, dict) and isinstance(merged[key].get(name), dict):
+                    merged[key][name].update(sub)
+                else:
+                    merged[key][name] = sub
+        elif key in UNION_MERGE_LIST_KEYS and isinstance(value, list) and isinstance(merged.get(key), list):
+            merged[key] = value + [item for item in DEFAULTS[key] if item not in value]
         else:
             merged[key] = value
+    merged["config_version"] = CONFIG_VERSION
     return merged
 
 

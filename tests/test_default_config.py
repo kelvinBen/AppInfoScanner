@@ -26,8 +26,8 @@ class TestConfigRoundtrip(unittest.TestCase):
         self.assertEqual(len(dc.DEFAULTS["filter_components"]), 20)
         self.assertEqual(len(dc.DEFAULTS["ios_components"]), 22)
         self.assertGreaterEqual(len(dc.DEFAULTS["filter_no_domains"]), 120)
-        self.assertEqual(len(dc.DEFAULTS["filter_ak_map"]), 24)
-        self.assertEqual(len(dc.DEFAULTS["filter_pii_map"]), 9)
+        self.assertEqual(len(dc.DEFAULTS["filter_ak_map"]), 56)
+        self.assertEqual(len(dc.DEFAULTS["filter_pii_map"]), 14)
 
     def test_flutter_not_shell_class(self):
         # Flutter 标准 Application 不是壳，不得回归

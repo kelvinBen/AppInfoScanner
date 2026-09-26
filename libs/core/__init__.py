@@ -111,8 +111,8 @@ def init_logger(log_path):
     return logger
 
 
+# 只写日志文件
 def logf(msg):
-    """只写日志文件(按消息前缀定级)，不影响控制台。"""
     msg = i18n.ts(msg)
     if logger:
         level = _logging.INFO
@@ -123,20 +123,20 @@ def logf(msg):
         logger.log(level, msg)
 
 
+# 控台+日志双写, flush保证管道场景实时可见
 def logp(msg):
-    """控制台输出 + 日志双写：消息经 i18n 按系统语言翻译。"""
-    print(i18n.ts(msg))
+    print(i18n.ts(msg), flush=True)
     logf(msg)
 
 
+# 异常堆栈写入日志
 def logexc(tag):
-    """异常现场写入日志(含堆栈)，控制台不输出堆栈。"""
     if logger:
         logger.exception(tag)
 
 
+# 过程信息单行刷新
 def progress(msg):
-    """过程信息单行刷新：\r 回行首覆盖上一条，不产生新行。"""
     global _progress_last
     msg = i18n.ts(msg)
     logf(msg)
@@ -147,8 +147,8 @@ def progress(msg):
         _progress_last = msg
 
 
+# 进度行上方插入完整输出
 def notice(msg):
-    """在进度行上方插入一条完整输出(自动清掉进度行残留并换行)。"""
     global _progress_last
     logf(msg)
     with _progress_lock:
@@ -158,8 +158,8 @@ def notice(msg):
         _progress_last = ""
 
 
+# 结束进度行
 def progress_end():
-    """结束进度行(补换行)，后续输出回到正常行首。"""
     global _progress_last
     with _progress_lock:
         if _progress_last:
@@ -245,8 +245,9 @@ class Bootstrapper(object):
         sample_name = __sanitize_sample_name__(inputs)
         result_dir = os.path.join(out_dir, "result",
                                   "%s_%s" % (sample_name, create_time))
-        # 每任务独立日志集中存放于工作区 logs/，仅保留最新 20 个
-        logs_path = os.path.join(default_out_root, "logs")
+        # 日志跟随 -o 输出目录: 排障时用户只需要看一处, 不用翻工作区和 -o 两处
+        # 无 -o 时回退到工作区 ~/Documents/AppInfoScanner/logs/, 仅保留最新 20 个
+        logs_path = os.path.join(out_dir, "logs")
         log_file_path = os.path.join(logs_path,
                                      "%s_%s.log" % (sample_name, create_time))
         txt_result_path = os.path.join(result_dir, "report.txt")
@@ -287,21 +288,21 @@ class Bootstrapper(object):
         __prune_logs__(logs_path, keep=20)
         logp(i18n.t("[*] Result directory: {}", result_dir))
         logp(i18n.t("[*] Log file: {}", log_file_path))
-        logf("[*] AppInfoScanner v1.0.10 start: {} {}".format(
-            platform.system(), _sys.version.split()[0]))
+        from libs.core import updater
+        logf("[*] AppInfoScanner v{} start: {} {}".format(
+            updater.APP_VERSION, platform.system(), _sys.version.split()[0]))
 
         self.__deploy_workspace__(script_root_dir, default_out_root)
 
+        # 启动时非阻塞检测新版本(1小时冷却, 不影响正常使用)
+        try:
+            updater.check_for_update(default_out_root, silent=True)
+        except Exception:
+            pass  # 更新检测失败不影响正常使用
 
+
+    # 部署工作区config.toml与tools, 加载合并运行时配置
     def __deploy_workspace__(self, script_root_dir, workspace_root):
-        """部署用户工作区的 config.toml 与 tools/，并加载合并出运行时配置。
-
-        - config.toml 缺失时：工作区存在旧版 config.py 则一次性迁移为 TOML
-          （原文件改名保留为 config.py.bak），否则从内置默认值生成带注释的模板；
-        - 加载：工作区 config.toml 以同名键覆盖内置默认值（默认值在
-          libs/core/default_config.py），缺失键沿用默认，解析失败回退默认并告警；
-        - tools：整体部署一次；unpacker/ 为 Windows 专属二进制，非 Windows 平台跳过。
-        """
         global config
         workspace_toml = os.path.join(workspace_root, "config.toml")
         legacy_py = os.path.join(workspace_root, "config.py")
@@ -332,6 +333,20 @@ class Bootstrapper(object):
         try:
             with open(workspace_toml, "rb") as f:
                 parsed = tomllib.load(f)
+            # 版本检查与自动迁移
+            cfg_ver = parsed.get("config_version", "1.0.10")  # 无版本字段视为早期版本
+            if default_config.version_lt(cfg_ver, default_config.CONFIG_VERSION):
+                logp(i18n.t("[*] Config v{} -> v{} migrating...", cfg_ver, default_config.CONFIG_VERSION))
+                parsed, changed = default_config.migrate_config(parsed, cfg_ver)
+                if changed:
+                    # 有迁移变更时回写 config.toml(保留用户自定义 + 更新版本号)
+                    parsed.pop("config_version", None)  # dump_config 会自动写
+                    with open(workspace_toml, "w", encoding="utf-8") as f:
+                        f.write(default_config.dump_config(parsed))
+                    logp("[+] Config migrated to v{}".format(default_config.CONFIG_VERSION))
+                else:
+                    # 无迁移函数也更新版本号(仅深合并, 不回写文件)
+                    logp("[*] Config is compatible, no migration needed")
             merged = default_config.merge_over_defaults(parsed)
         except Exception as e:
             logp("[-] Load workspace config failed ({}), fallback to built-in config".format(e))

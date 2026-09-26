@@ -19,8 +19,10 @@ from libs.task.download_task import DownloadTask
 class BaseTask(object):
     # 统一初始化入口
 
-    def __init__(self, types="Android", inputs="", rules="", sniffer=True, threads=10, package=""):
-        # 实例级可变状态: 类级定义会在同进程多次任务间累积泄漏
+    def __init__(self, types="Android", inputs="", rules="", sniffer=False, threads=10, package="",
+                 unpack=False, prefer_dump=None, scope=None):
+        # 统一初始化入口
+        # 实例级可变状态(不用类属性: 同进程多次任务会累积泄漏)
         self.thread_list = []
         self.result_dict = {}
         self.app_history_list = []
@@ -29,10 +31,27 @@ class BaseTask(object):
         self.path = inputs
         if rules:
             cores.config.filter_strs.append(r'.*'+str(rules)+'.*')
-        self.sniffer = not sniffer
+        self.sniffer = sniffer  # --sniffer 显式开启, 默认关闭
         self.threads = threads
         self.package = package
+        self.unpack_enabled = unpack
+        self.prefer_dump = prefer_dump
+        self.scope_file = scope
+        self.scope_domains = self.__load_scope__() if scope else None
         self.file_queue = Queue()
+
+    # 加载授权域名清单(每行一个域名或后缀)，仅名单内的域名参与嗅探
+    def __load_scope__(self):
+        try:
+            with open(self.scope_file, "r", encoding="utf-8") as f:
+                domains = [line.strip().lower() for line in f
+                           if line.strip() and not line.startswith("#")]
+            if domains:
+                cores.logp(cores.i18n.t("[*] Scope file loaded: {} domains", len(domains)))
+            return set(domains)
+        except OSError as e:
+            cores.logp("[-] Failed to read scope file: {}".format(e))
+            return None
 
     # 统一调度平台
 
@@ -92,7 +111,9 @@ class BaseTask(object):
 
         # 调用Android 相关处理逻辑
         if types == "Android":
-            task_info = AndroidTask(cacar_path, self.package).start()
+            task_info = AndroidTask(cacar_path, self.package,
+                                    unpack=self.unpack_enabled,
+                                    prefer_dump=self.prefer_dump).start()
         # 调用iOS 相关处理逻辑
         elif types == "iOS":
             task_info = iOSTask(cacar_path).start()
@@ -115,7 +136,8 @@ class BaseTask(object):
         if self.sniffer:
             cores.logp("[*] ========= Sniffing the URL address of the search ===============")
             sniff_rows = NetTask(self.result_dict, self.app_history_list,
-                                 self.domain_history_list, file_identifier, self.threads).start()
+                                 self.domain_history_list, file_identifier, self.threads,
+                                 scope_domains=self.scope_domains).start()
 
         # 控制台分区汇总
         if packagename:
@@ -162,7 +184,28 @@ class BaseTask(object):
             len(data["ip_public"]), len(data["ip_v6"]), len(data["loopback"])))
         cores.logp("  Credentials: %d    PII: %d    Other: %d" % (
             len(data["credentials"]), len(data["pii"]), len(data["other"])))
+        # 中间产物占用报告
+        out_size = self.__dir_size__(cores.output_path)
+        if out_size > 1024 * 1024:
+            cores.logp(cores.i18n.t(
+                "[*] Intermediate artifacts in out/: {:.1f} MB, clean with: rm -rf {}",
+                out_size / 1048576, cores.output_path))
         cores.logp(cores.i18n.t("[*] Reports saved to: {}", cores.result_dir))
+
+    # 递归计算目录占用
+    @staticmethod
+    def __dir_size__(path):
+        total = 0
+        try:
+            for root, _, files in os.walk(path):
+                for name in files:
+                    try:
+                        total += os.path.getsize(os.path.join(root, name))
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+        return total
 
     def __history_handle__(self):
         domain_history_path = cores.domain_history_path

@@ -21,7 +21,7 @@ class WebTask(object):
         self.permissions = []
 
     def start(self):
-        # 后缀表转 set：目录递归时每个文件的后缀判断为 O(1)；空配置回退基础后缀
+        # 后缀表转set, 空配置回退基础后缀
         suffixes = [str(suffix).lower() for suffix in cores.config.web_file_suffix]
         if not suffixes:
             suffixes = ["html", "js", "xml"]

@@ -125,3 +125,21 @@ class TestSensitiveDetection(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPIITestVectors(unittest.TestCase):
+    def test_known_vector_filtered(self):
+        results = scan_content('bc: 6272217099150286, tl: 15258229321')
+        self.assertFalse(any("BankCard" in r for r in results))
+        self.assertFalse(any("Phone_CN" in r for r in results))
+
+    def test_real_phone_not_filtered(self):
+        results = scan_content('tel: 13912345678')
+        self.assertTrue(any("Phone_CN" in r for r in results))
+
+
+class TestUSCCFormat(unittest.TestCase):
+    def test_hex_rejected(self):
+        # 纯 hex 串不是合法信用代码(首位 7 对应工商但次位 0 不在合法集)
+        self.assertFalse(scan_content('uscc: 704313664479786E81')
+                         and any("USCC" in r for r in scan_content('uscc: 704313664479786E81')))

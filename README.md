@@ -1,4 +1,4 @@
- ![License](https://img.shields.io/badge/Version-V1.0.10-red) ![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange) [![HitCount](https://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner.svg?style=flat&show=unique)](http://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner)
+ ![License](https://img.shields.io/badge/Version-V1.0.11-red) ![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange) [![HitCount](https://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner.svg?style=flat&show=unique)](http://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner)
 
 
 **语言/Language**: [简体中文](README.md) | [English](README_EN.md)
@@ -37,16 +37,20 @@
 - [x] CVE/RCE 组件检测: 支持 20 项 Android 应用 和 22 项 iOS 应用 CVE 和 RCE 组件的检测
 - [x] 敏感权限检测: 支持 49 项 Android 应用 和 22 项 iOS 应用高敏感权限的检测
 - [x] 敏感凭据(AK/SK)检测: 全面覆盖阿里云/腾讯云/AWS/Google/GitHub/GitLab/Slack/Stripe/JWT/私钥/URL内嵌密码等通用凭据的检测
-- [x] 个人/企业敏感信息检测: 支持 手机号/身份证/邮箱/银行卡/车牌/姓名/统一社会信用代码等敏感信息的检测
+- [x] 个人/企业敏感信息检测: 支持 手机号/身份证/邮箱/银行卡/车牌/姓名/护照/VIN/IMEI/统一社会信用代码等敏感信息的检测
 - [x] 常见协议采集: 支持 http(s)/ws/jdbc/redis/mysql 等常用协议的采集
-- [x] 基础网络嗅探: 支持状态码/标题/Server/CDN/解析IP等基础信息的嗅探
+- [x] 基础网络嗅探: 支持状态码/标题/Server/CDN/解析IP等基础信息的嗅探(--sniffer 显式开启，--scope 限定授权范围)
 - [x] 多输出类别文件: 支持 json、txt、xlsx 等结果文件的输出
 - [x] 国际化支持: 根据系统语言自动输出 中文/English 等语言提示
 - [x] 适配 Windows/macOS/Linux 等主流操作系统
-- [ ] 指纹识别模块(Web框架/CDN/WAF/CMS)
 - [x] 支持APK文件魔数的自动修复
-- [ ] 脱壳自动化增强
+- [x] 组件版本检测: 提取组件版本号，对照CVE影响范围给出受影响/安全结论
+- [x] 授权嗅探: 支持域名清单文件限定嗅探范围(--scope)
+- [x] 自动更新: 支持从 GitHub Release 检测/下载/MD5校验自动更新(update 子命令)
+- [x] 配置版本管理: config.toml 带版本号，跨版本升级自动迁移并保留用户自定义规则
+- [ ] 指纹识别模块(Web框架/CDN/WAF/CMS)
 - [ ] ELF/.so 与 Flutter(libapp.so) 解析、支持鸿蒙/澎湃OS 等安装包的解析
+- [ ] AI Agent 集成(MCP Server/--agent 模式/结构化输出契约)
 
 ## 部分截图
 
@@ -127,21 +131,18 @@ AppInfoScanner
 
 ```
     python app.py android -i <APK/DEX 文件或下载地址或目录>
-    (English: python app.py android -i <Your APK File or DEX File or APK Download Url or Save File Dir>)
 ```
 
 - 扫描iOS应用的IPA文件、Mach-o文件、需要下载的IPA文件下载地址、保存需要扫描的文件目录
 
 ```
     python app.py ios -i <IPA/Mach-O 文件或下载地址或目录>
-    (English: python app.py ios -i <Your IPA file or Mach-o File or IPA Download Url or Save File Dir>)
 ```
 
 - 扫描Web站点的文件、目录、需要缓存的站点URL
 
 ```
     python app.py web -i <站点文件或目录或URL地址>
-    (English: python app.py web -i <Your Web file or Save Web Dir or Web Cache Url>)
 ```
 
 ## 进阶操作指南
@@ -149,7 +150,6 @@ AppInfoScanner
 ### 基本命令格式
 ```
 python app.py [TYPE] [OPTIONS] <扫描的文件或目录或URL地址>
-(English: <The URL or directory to scan>)
 ```
 
 ### 符号信息说明
@@ -178,12 +178,23 @@ web: 用于扫描WEB站点或者H5相关的文件内容
 ```
 -i 或者 --inputs: 输入需要进行扫描的文件、目录或者需要自动下载的文件URL地址，路径过长时请用双引号(")包裹，此参数为必填项。
 -r 或者 --rules: 输入需要扫描文件内容的临时扫描规则。
--s 或者 --sniffer: 关闭网络嗅探功能，默认为开启状态。
+--sniffer / --no-sniffer: 开启网络嗅探功能，默认为关闭状态。红队场景下建议配合 --scope 使用。
+--scope: 指定授权域名清单文件路径(每行一个域名或后缀)，仅对名单内域名发起嗅探。
+--unpack: 显式开启脱壳(检测到加固后推送frida-server到设备)。默认仅提示不动设备，防止破坏渗透现场。此参数只能在android类型下使用。
+--prefer-dump: 指定已有脱壳产物目录直接扫描，不碰设备。此参数只能在android类型下使用。
 -n 或者 --no-resource: 忽略所有的资源文件，包含网络嗅探功能中的资源文件(需要先在工作区config.toml中配置sniffer_filter相关规则)，默认为不忽略资源。
 -a 或者 --all: 逐条输出命中的内容(详细模式)，默认仅输出汇总。
 -t 或者 --threads: 设置线程并发数量，默认为10个线程并发。
--o 或者 --output: 指定扫描结果和扫描过程中产生的临时文件的输出目录，默认为用户文档目录下的AppInfoScanner目录(如 macOS/Linux 的 ~/Documents/AppInfoScanner、Windows 的 C:\Users\<用户名>\Documents\AppInfoScanner)；若用户文档目录不存在则使用用户主目录下的AppInfoScanner目录(如 /home/<用户名>/AppInfoScanner)。
+-o 或者 --output: 指定扫描结果和扫描过程中产生的临时文件的输出目录，默认为用户文档目录下的AppInfoScanner目录。日志文件也跟随此目录。
 -p 或者 --package: 指定Android的APK文件或者DEX文件需要扫描的JAVA包名信息。此参数只能在android类型下使用。
+```
+
+### update 子命令
+
+```
+python app.py update --check    仅检测新版本，显示当前/最新版本号
+python app.py update            执行更新(从GitHub Release下载/MD5校验/自动替换)
+python app.py update --tools    检查工具链版本(apktool/baksmali)
 ```
 
 ### 具体使用方法
@@ -454,7 +465,7 @@ APP组件: fastjson com.alibaba.fastjson
 提交需求、提交BUG修复、技术交流、商务合作均可添加作者好友。
 
 ## Stargazers over time
-[![Stargazers over time](https://starchart.cc/kelvinBen/AppInfoScanner.svg)](https://starchart.cc/kelvinBen/AppInfoScanner)
+[![Stargazers over time](https://api.star-history.com/svg?repos=kelvinBen/AppInfoScanner&type=Date)](https://star-history.com/#kelvinBen/AppInfoScanner&Date)
 
 ## 404StarLink 2.0 - Galaxy
 ![](https://github.com/knownsec/404StarLink-Project/raw/master/logo.png)

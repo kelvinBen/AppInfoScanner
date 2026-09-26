@@ -33,16 +33,16 @@ _ADB_INSTALL = {
 }
 
 
+# 探测系统包管理器
 def detect_pkg_manager():
-    """探测可用的系统包管理器，无则返回 None(无法自动安装)。"""
     for manager in ("brew", "apt-get", "dnf", "yum", "pacman", "zypper"):
         if shutil.which(manager):
             return "apt" if manager == "apt-get" else manager
     return None
 
 
+# 执行安装命令(继承终端供sudo交互), 全部记入日志
 def _run_install(cmds):
-    """执行安装命令(继承终端以便 sudo 交互)，全部记入日志。"""
     import libs.core as cores
     for cmd in cmds:
         cores.logf("[CMD] " + " ".join(cmd))
@@ -52,8 +52,8 @@ def _run_install(cmds):
     return True
 
 
+# Java存在返回True, 缺失则经包管理器自动安装
 def ensure_java():
-    """Java 运行时存在返回 True；缺失则按包管理器自动安装。"""
     import libs.core as cores
     if shutil.which("java"):
         return True
@@ -73,8 +73,8 @@ def ensure_java():
     return False
 
 
+# 返回adb路径, 缺失则自动安装, 失败返回None
 def ensure_adb():
-    """返回可用的 adb 可执行文件路径；缺失则自动安装，失败返回 None。"""
     import libs.core as cores
     existing = shutil.which("adb")
     if existing:
@@ -99,11 +99,8 @@ def ensure_adb():
 _FRIDA_PKGS = ("frida", "frida-tools", "frida-dexdump")
 
 
+# 从requirements.txt解析frida三件套锁定版本, 失败时回退裸包名
 def pinned_frida_requirements():
-    """从 requirements.txt 解析 frida 三件套的锁定版本(单一版本源)。
-
-    解析失败(文件缺失/未锁定)时回退为不带版本号的包名。
-    """
     import libs.core as cores
     import re as _re2
     try:
@@ -121,13 +118,14 @@ def pinned_frida_requirements():
     return pinned
 
 
+# frida CLI 与 frida-dexdump 均存在返回 True; 缺失则按锁定版本安装
 def ensure_frida():
-    """frida CLI 与 frida-dexdump 均存在返回 True；缺失则按 requirements 锁定版本 pip 安装。
-
-    frida-dexdump 是独立包(脱壳流程实际调用的可执行文件)，只装 frida-tools 不够。
-    """
+    import importlib.util
     import libs.core as cores
-    if shutil.which("frida") and shutil.which("frida-dexdump"):
+    # 先查Python模块(find_spec), 再查PATH CLI; venv部署时CLI可能不在PATH
+    frida_ok = importlib.util.find_spec("frida") is not None or bool(shutil.which("frida"))
+    dexdump_ok = importlib.util.find_spec("frida_dexdump") is not None or bool(shutil.which("frida-dexdump"))
+    if frida_ok and dexdump_ok:
         return True
     targets = pinned_frida_requirements()
     bases = [
@@ -145,18 +143,17 @@ def ensure_frida():
                 user_bin = os.path.expanduser("~/.local/bin")
             if os.path.isdir(user_bin) and user_bin not in os.environ.get("PATH", ""):
                 os.environ["PATH"] += os.pathsep + user_bin
-            if shutil.which("frida") and shutil.which("frida-dexdump"):
+            frida_ok = importlib.util.find_spec("frida") is not None or bool(shutil.which("frida"))
+            dexdump_ok = importlib.util.find_spec("frida_dexdump") is not None or bool(shutil.which("frida-dexdump"))
+            if frida_ok and dexdump_ok:
                 cores.logp(cores.i18n.t("[+] frida installed successfully"))
                 return True
     cores.logp(cores.i18n.t("[-] frida auto-install failed, run: python3 -m pip install frida-tools"))
     return False
 
 
-# ---------------------------------------------------------------------------
-# frida 版本一致性: Python 侧 frida core 与设备端 frida-server 必须同版本，
-# 否则出现 "unable to connect / Failed to enumerate processes" 类故障。
-# 以 frida core 版本为基准: 自带 hexl-server 匹配则用之，否则按设备 ABI
-# 从 frida 官方 release 下载对应版本 server 到工作区 tools/frida/。
+# frida版本一致性: Python侧core与设备端frida-server必须同版本,
+# 以core为基准, 自带hexl-server匹配则用, 否则从官方release按ABI下载
 import lzma
 import re as _re
 import urllib.request
@@ -167,8 +164,8 @@ _ABI_TO_ARCH = {"arm64-v8a": "arm64", "armeabi-v7a": "arm", "armeabi": "arm",
                 "x86": "x86", "x86_64": "x86_64"}
 
 
+# 返回当前解释器的frida core版本
 def frida_core_version():
-    """返回当前解释器安装的 frida core 版本，取不到返回 None。"""
     try:
         output = subprocess.run(
             [sys.executable, "-c", "import frida; print(frida.__version__)"],
@@ -179,8 +176,8 @@ def frida_core_version():
         return None
 
 
+# 二进制内嵌版本串包含core版本即匹配
 def server_matches(server_path, core_version):
-    """二进制内嵌版本串包含 core 版本即视为匹配(frida-server 内嵌自身完整版本号)。"""
     try:
         with open(server_path, "rb") as f:
             return core_version.encode() in f.read()
@@ -188,8 +185,8 @@ def server_matches(server_path, core_version):
         return False
 
 
+# 从二进制猜测frida-server版本(诊断用)
 def server_version_guess(server_path):
-    """诊断用: 从二进制猜测 frida-server 版本(过滤明显非版本的数字串)。"""
     try:
         with open(server_path, "rb") as f:
             data = f.read()
@@ -208,12 +205,8 @@ def server_version_guess(server_path):
     return max(counts, key=counts.get)
 
 
+# 返回与本地frida core版本一致的server路径: 已有->自带->下载->None
 def ensure_frida_server(device_abi, adb_path="adb"):
-    """返回与本地 frida core 版本一致的 frida-server 路径。
-
-    顺序: 工作区已下载的同版 server -> 自带 hexl-server(版本匹配时) ->
-    从 frida 官方 release 下载对应版本(按设备 ABI) -> 均失败返回 None。
-    """
     import libs.core as cores
     core = frida_core_version()
     if not core:

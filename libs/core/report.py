@@ -29,8 +29,8 @@ _SENSITIVE_PATTERN = re.compile(r'^\[([A-Za-z0-9_]+)\]-->:?\s*(.+)$', re.S)
 _IPV6_HINT = re.compile(r'^[0-9a-fA-F:]+$')
 
 
+# 从URL/地址串取host
 def extract_host(value):
-    """从 URL/地址串中取 host（与 parses.__extract_host__ 同口径的独立实现）。"""
     rest = value
     if "://" in rest:
         rest = rest.split("://", 1)[1]
@@ -44,6 +44,7 @@ def extract_host(value):
     return rest.rsplit(":", 1)[0]
 
 
+# 判定是否私网/链路本地IPv4
 def is_private_ip4(ip):
     try:
         parts = [int(x) for x in ip.split(".")]
@@ -58,8 +59,8 @@ def is_private_ip4(ip):
     return False
 
 
+# 从地址串提取端口(URL/ip:port形态; 无端口或IPv6返回None)
 def extract_port(value):
-    """从地址串提取端口（URL 形态 / ip:port 形态；无端口或 IPv6 字面量返回 None）。"""
     rest = value
     if "://" in rest:
         rest = rest.split("://", 1)[1]
@@ -77,11 +78,8 @@ def extract_port(value):
     return None
 
 
+# 内网/回环/链路本地IPv4与IPv6字面量不嗅探(仅对IP字面量生效,域名照常)
 def sniff_allowed(host):
-    """嗅探安全策略：内网/回环/链路本地 IPv4 与一切 IPv6 字面量不嗅探(仍入报告)。
-
-    仅对 IP 字面量生效；域名无法静态判定内外网，照常嗅探。
-    """
     host = (host or "").strip().strip("[]").lower()
     if not host:
         return False
@@ -101,8 +99,8 @@ def sniff_allowed(host):
     return True
 
 
+# 把result_dict分类聚合为报告数据结构
 def classify_results(result_dict, ak_names, pii_names):
-    """把 result_dict 分类聚合为报告数据结构。"""
     data = {
         "urls": {},
         "hosts": {},
@@ -173,8 +171,8 @@ def _split_sensitive(key):
     return name, value
 
 
+# 结构化JSON报告
 def write_json_report(path, meta, data, extra):
-    """结构化主输出：全部维度分组，凭据/PII 按规则集聚合，带来源文件。"""
     payload = {"meta": meta}
     for section in ("urls", "hosts", "ip_private", "ip_public", "ip_v6", "loopback"):
         payload[section] = [
@@ -199,8 +197,8 @@ def _group_by_rule(flat):
     return grouped
 
 
+# TXT分区汇总报告
 def write_txt_report(path, meta, data, extra):
-    """人读分区汇总报告：概要 -> 壳/组件/权限 -> 资产清单 -> 凭据/PII -> 明细。"""
     lines = []
     lines.append("=" * 64)
     lines.append("AppInfoScanner 扫描报告")
@@ -277,8 +275,8 @@ def write_txt_report(path, meta, data, extra):
         f.write("\n".join(lines))
 
 
+# XLSX多sheet报告
 def write_xlsx_report(path, meta, data, extra):
-    """多 sheet 报告：概要/域名/IP/凭据/PII/组件/权限/嗅探/明细。"""
     import openpyxl
     workbook = openpyxl.Workbook()
     summary = workbook.active

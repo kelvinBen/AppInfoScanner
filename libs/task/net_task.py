@@ -14,7 +14,7 @@ class NetTask(object):
     value_list = []
     domain_list = []
 
-    def __init__(self, result_dict, app_history_list, domain_history_list, file_identifier, threads):
+    def __init__(self, result_dict, app_history_list, domain_history_list, file_identifier, threads, scope_domains=None):
         self.result_dict = result_dict
         self.app_history_list = app_history_list
         self.file_identifier = file_identifier
@@ -22,9 +22,11 @@ class NetTask(object):
         self.threads = int(threads)
         self.thread_list = []
         self.domain_history_list = domain_history_list
+        # 授权域名清单(None=不限制, set=仅清单内嗅探)
+        self.scope_domains = scope_domains
 
+    # 执行嗅探并返回行数据
     def start(self):
-        """执行网络嗅探并返回行数据(xlsx 由 report 模块统一生成)。"""
         self.sniff_rows = []
         self.skipped_sniff = 0  # 被嗅探策略跳过的内网地址数
         self.__write_result_to_txt__()
@@ -67,6 +69,17 @@ class NetTask(object):
                     if not sniffable:
                         self.skipped_sniff += 1
                         cores.logf("[SNIFF-SKIP] internal address: " + result)
+                    elif self.scope_domains is not None:
+                        # 授权 scope 过滤: 域名或其父域必须在清单内
+                        host = extract_host(result).lower()
+                        host_labels = host.split(".")
+                        in_scope = any(
+                            ".".join(host_labels[i:]) in self.scope_domains
+                            for i in range(len(host_labels)))
+                        if not in_scope:
+                            sniffable = False
+                            self.skipped_sniff += 1
+                            cores.logf("[SNIFF-SKIP] out of scope: " + result)
                     if sniffable and not(cores.resource_flag and url_suffix in sniffer_filter_suffix):
                         self.domain_queue.put(
                             {"domain": domain, "url_ip": result})

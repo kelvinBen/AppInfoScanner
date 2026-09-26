@@ -83,14 +83,8 @@ def detect_dex(path):
     return status
 
 
+# 检测AXML文件头状态; 需魔数完好或字符串池佐证, 否则返回None
 def detect_axml(path):
-    """返回 AXML(AndroidManifest.xml 等二进制 XML) 文件头状态字典；无内容佐证时返回 None。
-
-    佐证条件（满足其一即认定为 AXML）：
-      1. 前 4 字节魔数完好 (03 00 08 00)；
-      2. 魔数损坏，但 offset 8 处紧跟字符串池块头 (01 00 1C 00) —— AXML 文件头后
-         的第一个内部块必为字符串池，zip/dex 等其他格式几乎不可能同时命中这两个字节对。
-    """
     size = os.path.getsize(path)
     if size < AXML_HEADER_SIZE:
         return None
