@@ -10,6 +10,8 @@ This project is just the tip of the iceberg of a larger plan. If you are interes
 
 A mobile (Android, iOS, WEB, H5, static sites) information-gathering scanner for HW operations / red team / penetration testing teams. It helps pentesters, attack team members, and red teamers quickly collect key asset information from mobile apps or static web bundles, providing basic information output such as: Title, Domain, CDN, status info, etc.
 
+**Website / Docs**: https://blog.52zhuanke.cn/AppInfoScanner-Site/
+
 ## Preface
 
 - The developer is an individual developer with a full-time job; new features are developed in spare time, bugs are prioritized.

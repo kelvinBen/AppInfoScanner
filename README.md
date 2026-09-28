@@ -9,6 +9,8 @@
 
 一款适用于以HW行动/红队/渗透测试团队为场景的移动端(Android、iOS、WEB、H5、静态网站)信息收集扫描工具，可以帮助渗透测试工程师、攻击队成员、红队成员快速收集到移动端或者静态WEB站点中关键的资产信息并提供基本的信息输出,如：Title、Domain、CDN、状态信息等。
 
+**官网/文档站**: https://blog.52zhuanke.cn/AppInfoScanner-Site/
+
 ## 前言
 - 本项目的开发者目前为个人开发者同时有自己的工作，新的功能或者需求会在闲暇时间进行开发，BUG会优先进行处理。
 - 如果在使用中遇到问题或者有新的需求，请在 [issues](https://github.com/kelvinBen/AppInfoScanner/issues) 提交BUG反馈，提交BUG前请先阅读最后的"常见问题"。
