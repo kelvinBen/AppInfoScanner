@@ -306,12 +306,12 @@ Add scanning for Baidu domains
 python app.py android -i C:\Users\Administrator\Desktop\Demo.apk -r ".*baidu.com.*"
 ```
 
-- Disable network sniffing
+- Enable network sniffing (disabled by default; pair with --scope in red team scenarios)
 ```
-python app.py android -i <Your apk> --no-sniffer
+python app.py android -i <Your apk> --sniffer --scope <authorized domain list file>
 
 Example:
-python app.py android -i C:\Users\Administrator\Desktop\Demo.apk --no-sniffer
+python app.py android -i C:\Users\Administrator\Desktop\Demo.apk --sniffer --scope authorized_domains.txt
 ```
 
 - Ignore all resource files

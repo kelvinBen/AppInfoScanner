@@ -305,12 +305,12 @@ python app.py android -i <Your apk> -r <the keyword | the rules>
 python app.py android -i C:\Users\Administrator\Desktop\Demo.apk -r ".*baidu.com.*"
 ```
 
-- 关闭网络嗅探功能
+- 开启网络嗅探功能（默认关闭，红队场景建议配合 --scope 授权域名清单使用）
 ```
-python app.py android -i <Your apk> -s
+python app.py android -i <Your apk> --sniffer --scope <授权域名清单文件>
 
 例：
-python app.py android -i C:\Users\Administrator\Desktop\Demo.apk -s
+python app.py android -i C:\Users\Administrator\Desktop\Demo.apk --sniffer --scope authorized_domains.txt
 
 ```
 - 忽略所有的资源文件
