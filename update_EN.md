@@ -4,6 +4,7 @@
 
 ### V1.0.12
 Added:
+- Added official website (separate repo AppInfoScanner-Site: bilingual docs site / download center / ad slots, blog.52zhuanke.cn/AppInfoScanner-Site) plus sponsorship entry (FUNDING.yml) and responsible-disclosure policy (SECURITY.md); README bilingual website links and fixed outdated sniffing example flags
 - Added component aggregation with host attribution: duplicate copies grouped per host SDK (locating embedded copies in TingYun/UnionPay etc.), component details upgraded to Component/Host/Version/Verdict columns (json/txt/xlsx), unversioned entries marked "version not extracted, manual review"
 - Added three PII rules: HK/Macau travel permit (bare C/H/M+8 form plus keyword-anchored form), driving license (license/archive numbers, keyword-anchored), credit card (Visa/Mastercard/Amex/JCB/UnionPay brand prefixes + Luhn check, merged into the bank-card bucket)
 - Added suspected symmetric-key heuristic (low-confidence annotation for SecretKeySpec adjacent to 16/24/32-byte printable constants, declaring the prefix-less key blind spot)
