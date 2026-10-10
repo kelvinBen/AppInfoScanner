@@ -312,7 +312,14 @@ def write_xlsx_report(path, meta, data, extra):
           [(k, len(v)) for k, v in data["urls"].items()])
     _sensitive_sheet(workbook, "Credentials", data["credentials"])
     _sensitive_sheet(workbook, "PII", data["pii"])
-    sheet("Components", ("Component",), [(c,) for c in extra.get("components") or []])
+    # 组件明细: 宿主归属+版本+结论 三列结构(无明细时回退行式条目)
+    comp_detail = extra.get("components_detail") or []
+    if comp_detail:
+        sheet("Components", ("Component", "Host SDK", "Version", "Verdict"),
+              [(d.get("component", ""), d.get("host", ""), d.get("version", ""), d.get("verdict", ""))
+               for d in comp_detail])
+    else:
+        sheet("Components", ("Component",), [(c,) for c in extra.get("components") or []])
     sheet("Permissions", ("Permission",), [(p,) for p in extra.get("permissions") or []])
     sheet("Shell", ("Conclusion",), [(s,) for s in extra.get("shell") or []])
     if extra.get("sniffer"):

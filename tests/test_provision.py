@@ -41,6 +41,7 @@ class TestEnsureShortCircuit(unittest.TestCase):
 
     def test_frida_present_no_pip(self):
         with mock.patch.object(shutil, "which", return_value="/usr/local/bin/frida"), \
+                mock.patch("importlib.util.find_spec", return_value=None), \
                 mock.patch.object(provision, "subprocess") as sp:
             self.assertTrue(provision.ensure_frida())
             sp.call.assert_not_called()
@@ -48,6 +49,7 @@ class TestEnsureShortCircuit(unittest.TestCase):
     def test_frida_missing_pip_fail_returns_false(self):
         import contextlib, io
         with mock.patch.object(shutil, "which", return_value=None), \
+                mock.patch("importlib.util.find_spec", return_value=None), \
                 mock.patch.object(provision.subprocess, "call", return_value=1), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertFalse(provision.ensure_frida())
@@ -57,6 +59,7 @@ class TestEnsureShortCircuit(unittest.TestCase):
         import contextlib, io
         which_calls = {"frida": "/bin/frida", "frida-dexdump": None}
         with mock.patch.object(shutil, "which", side_effect=lambda n: which_calls.get(n)), \
+                mock.patch("importlib.util.find_spec", return_value=None), \
                 mock.patch.object(provision.subprocess, "call", return_value=1), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertFalse(provision.ensure_frida())
@@ -147,7 +150,7 @@ class TestPinnedRequirements(unittest.TestCase):
         import tempfile, os
         import libs.core as cores
         with tempfile.TemporaryDirectory() as tmp:
-            req = os.path.join(tmp, "requirements.txt")
+            req = os.path.join(tmp, "requirements-unpack.txt")
             open(req, "w").write("requests\nfrida==17.18.0\nfrida-tools==14.10.4\nfrida-dexdump==2.0.1\n")
             with mock.patch.object(cores, "script_root_dir", tmp, create=True):
                 self.assertEqual(provision.pinned_frida_requirements(),
@@ -164,6 +167,7 @@ class TestPinnedRequirements(unittest.TestCase):
     def test_ensure_frida_installs_pinned_versions(self):
         import contextlib, io
         with mock.patch.object(shutil, "which", return_value=None), \
+                mock.patch("importlib.util.find_spec", return_value=None), \
                 mock.patch.object(provision, "pinned_frida_requirements",
                                   return_value=["frida==17.18.0", "frida-tools==14.10.4",
                                                 "frida-dexdump==2.0.1"]) as pins, \

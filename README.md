@@ -1,4 +1,4 @@
- ![License](https://img.shields.io/badge/Version-V1.0.11-red) ![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange) [![HitCount](https://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner.svg?style=flat&show=unique)](http://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner)
+ ![License](https://img.shields.io/badge/Version-V1.0.12-red) ![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange) [![HitCount](https://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner.svg?style=flat&show=unique)](http://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner)
 
 
 **语言/Language**: [简体中文](README.md) | [English](README_EN.md)
@@ -100,7 +100,8 @@ AppInfoScanner
         |-- unpacker Windows 脱壳工具(adb/aapt/frida-server)
     |-- tests 单元测试(python3 -m unittest discover -s tests)
     |-- app.py 主运行程序
-    |-- requirements.txt 依赖清单(显式版本)
+    |-- requirements.txt 核心依赖清单(显式版本)
+    |-- requirements-unpack.txt 脱壳依赖(frida 三件套, 仅 --unpack 需要)
     |-- README.md / README_EN.md 使用说明(中英)
     |-- update.md / update_EN.md 版本历史(中英)
 ```
@@ -125,6 +126,8 @@ AppInfoScanner
 ```
     cd AppInfoScanner
     python -m pip install -r requirements.txt
+    # 如需脱壳(--unpack)再安装:
+    python -m pip install -r requirements-unpack.txt
 ```
 
 3. 运行(基础版)

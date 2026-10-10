@@ -15,7 +15,7 @@
 import copy
 
 # 配置格式版本: 跨版本升级时自动迁移用户 config.toml
-CONFIG_VERSION = "1.0.11"
+CONFIG_VERSION = "1.0.12"
 
 DEFAULTS = {
     # 配置格式版本(工具自动管理)
@@ -362,16 +362,18 @@ DEFAULTS = {
     # 以压低误报；Email 命中后按 filter_no_domains 过滤公共域名来信
     "filter_pii_map": {
         "Phone_CN": [
-            r'(?<!\d)1[3-9]\d{9}(?!\d)',
+            r'(?<![0-9A-Za-z])1[3-9]\d{9}(?![0-9A-Za-z])',
         ],
         "IDCard_CN_18": [
-            r'(?<![0-9Xx])[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[0-9Xx](?![0-9Xx])',
+            r'(?<![0-9A-Za-z])[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[0-9Xx](?![0-9A-Za-z])',
         ],
         "Email": [
             r'[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}',
         ],
         "BankCard_CN": [
-            r'(?<!\d)62\d{14,17}(?!\d)',
+            # 银行卡/信用卡合桶: 银联62(16-19)/Visa 4(13·16)/MC 5(16)/Amex 34·37(15)/JCB 35(16);
+            # 命中后经 Luhn 校验(MOD 10), 独立 token 形态(非字母数字环绕)
+            r'(?<![0-9A-Za-z])(?:62\d{14,17}|4\d{12}(?:\d{3})?|5[1-5]\d{14}|3[47]\d{13}|35(?:\d{14}))(?![0-9A-Za-z])',
         ],
         "Plate_CN": [
             r'[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z](?:[A-HJ-NP-Z0-9]{4}[挂学警港澳]|[A-HJ-NP-Z0-9]{5,6})',
@@ -380,30 +382,73 @@ DEFAULTS = {
             r'(?:姓名|联系人|真实姓名|收货人|经办人)[：:\s]{0,4}([\u4e00-\u9fa5·]{2,4})',
         ],
         "QQ_Number": [
-            r'(?i)(?:qq|扣扣|企鹅号)[^\d]{0,6}([1-9]\d{5,10})(?!\d)',
+            r'(?i)(?:qq|扣扣|企鹅号)[^\d]{0,6}([1-9]\d{5,10})(?![0-9A-Za-z])',
         ],
         "USCC_CN": [
-            r'(?<![0-9A-Z])[1-9A-HJ-NPQRTUWXY][0-9A-HJ-NPQRTUWXY]\d{6}[0-9A-HJ-NPQRTUWXY]{10}(?![0-9A-Z])',
+            r'(?<![0-9A-Za-z])[1-9A-HJ-NPQRTUWXY][0-9A-HJ-NPQRTUWXY]\d{6}[0-9A-HJ-NPQRTUWXY]{10}(?![0-9A-Za-z])',
         ],
         "MAC_Address": [
-            r'(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])',
+            r'(?<![0-9A-Za-z])(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}(?![0-9A-Za-z])',
         ],
         "Passport_CN": [
-            r'(?:护照|passport|护照号)[：:\s]{0,4}([EeGg]\d{8})(?!\d)',
+            r'(?:护照|passport|护照号)[：:\s]{0,4}([EeGg]\d{8})(?![0-9A-Za-z])',
         ],
         "VIN": [
-            r'(?:vin|车架号|车架)[：:\s]{0,4}([A-HJ-NPR-Z0-9]{17})(?![A-Z0-9])',
+            r'(?:vin|车架号|车架)[：:\s]{0,4}([A-HJ-NPR-Z0-9]{17})(?![A-Za-z0-9])',
         ],
         "IMEI": [
-            r'(?:imei|device[_-]?id|设备号)[：:\s]{0,4}(\d{15})(?!\d)',
+            r'(?:imei|device[_-]?id|设备号)[：:\s]{0,4}(\d{15})(?![0-9A-Za-z])',
         ],
         "Phone_Intl": [
-            r'(?:tel|phone|mobile|电话|手机)[：:\s]{0,4}(\+\d{1,3}[\s\d\-]{8,16})(?![\d])',
+            r'(?:tel|phone|mobile|电话|手机)[：:\s]{0,4}(\+\d{1,3}[\s\d\-]{8,16})(?![0-9A-Za-z])',
         ],
         "Address_CN": [
             r'(?:地址|住址|收货地址|address)[：:\s]{0,4}([\u4e00-\u9fa5]{2,6}(?:省|市|区|县|镇|乡|村|路|街|道|号|楼|室)[\u4e00-\u9fa50-9A-Za-z\-]{4,40})',
         ],
+        "HK_Macau_Permit": [
+            # 往来港澳通行证: 新版卡 C+8位 / 港澳居民来往内地通行证 H·M+8位(裸形态)
+            r'(?<![0-9A-Za-z])[CHMchm]\d{8}(?![0-9A-Za-z])',
+            # 旧版 9 位纯数字误报面大, 仅关键词锚定(裸形态误报高时退锚定同理)
+            r'(?:往来港澳通行证|港澳通行证|通行证号码?|港澳居民来往内地通行证)[：:\s]{0,4}(\d{9}|[CHMchm]\d{8})',
+        ],
+        "Driving_License": [
+            # 驾驶证号=身份证号(18位/旧15位), 档案编号=12位; 裸数字误报面大仅锚定
+            r'(?:驾驶证号|驾驶证档案编号|档案编号|驾证号)[：:\s]{0,4}(?:(\d{17}[0-9Xx])|(\d{15})|(\d{12}))',
+        ],
     },
+    # Email 顶级域(TLD)白名单: 命中邮箱的域后缀不在此名单即拒(png 这类非顶级域误报由此消灭);
+    # 离线内置常用 gTLD+ccTLD, 用户可在工作区 config.toml 增补(并集合并)
+    "email_tlds": [
+        "com", "net", "org", "edu", "gov", "mil", "int", "info", "biz", "name", "pro",
+        "mobi", "asia", "tel", "xxx", "aero", "museum", "travel", "jobs", "post", "coop",
+        "app", "dev", "io", "tech", "ai", "cloud", "online", "site", "store", "shop",
+        "xyz", "top", "club", "fun", "art", "live", "life", "world", "space", "website",
+        "email", "press", "news", "media", "video", "movie", "music", "photo", "pics",
+        "games", "play", "sport", "fitness", "yoga", "food", "restaurant", "coffee",
+        "kitchen", "beer", "bar", "wine", "recipes", "menu", "dating", "love", "friends",
+        "social", "network", "community", "chat", "wiki", "software", "code", "data",
+        "systems", "solutions", "services", "agency", "company", "group", "team", "work",
+        "careers", "training", "courses", "school", "academy", "institute", "college",
+        "university", "gallery", "engineer", "build", "construction", "education",
+        "finance", "financial", "accountant", "cash", "money", "fund", "capital",
+        "invest", "insurance", "legal", "lawyer", "tax", "healthcare", "clinic",
+        "doctor", "dental", "health", "care", "vip", "wang", "club", "red", "link",
+        "click", "help", "guru", "today", "expo", "expert", "run", "sale", "video",
+        "cn", "jp", "kr", "kp", "tw", "hk", "mo", "sg", "my", "id", "th", "vn", "ph",
+        "mm", "kh", "la", "pk", "bd", "lk", "np", "in", "ir", "kz", "by", "ua", "ru",
+        "tr", "il", "qa", "bh", "kw", "om", "ye", "iq", "sy", "jo", "lb", "ge", "am",
+        "az", "tm", "tj", "kg", "uz", "mn", "sa", "ae", "eg", "ma", "ng", "ke", "za",
+        "gh", "sn", "ci", "cm", "ga", "cd", "ao", "mz", "tz", "et", "zw", "zm", "mw",
+        "ug", "rw", "bw", "na", "sz", "ly", "tn", "dz", "sd", "dj", "so", "er", "eu",
+        "gb", "uk", "de", "fr", "it", "es", "nl", "be", "ch", "at", "pt", "se", "no",
+        "fi", "dk", "is", "ie", "pl", "cz", "sk", "hu", "ro", "bg", "gr", "lt", "lv",
+        "ee", "hr", "rs", "ba", "si", "mk", "al", "me", "mt", "cy", "lu", "li", "mc",
+        "ad", "sm", "va", "fo", "gl", "au", "nz", "fj", "pg", "nc", "ws", "to", "vu",
+        "sb", "ki", "fm", "mh", "pw", "nr", "tv", "ck", "nu", "tk", "us", "ca", "mx",
+        "br", "ar", "cl", "pe", "co", "ve", "uy", "py", "bo", "ec", "gt", "cr", "pa",
+        "cu", "jm", "tt", "pr", "ai", "ms", "dm", "ag", "vc", "lc", "gd", "bb", "bs",
+        "ky", "bm", "vi",
+    ],
     # 组件版本影响范围表: 从 smali 提取版本号后对照此表判断是否受已知 CVE 影响
     # version_field: smali 中的版本常量字段名(如 fastjson 的 VERSION)
     # version_pattern: 备用版本提取正则(如 bcprov 的 "bouncycastle 1.68" 模式)
@@ -429,6 +474,26 @@ DEFAULTS = {
             "safe_note": ">=2.17.0 已修复 JNDI 注入",
         },
     },
+    # 组件宿主 SDK 映射: 组件包路径之前命中的包前缀 -> 宿主名称(多命中取最长)。
+    # 用于归属"内嵌副本"(如 networkbench 内嵌的 BouncyCastle), 宿主信息是修复定位的关键;
+    # 未命中任何宿主的组件归属"应用本体"。可自行增补。
+    "component_hosts": {
+        "com.networkbench": "听云SDK(networkbench)",
+        "com.unionpay": "银联SDK(UnionPay)",
+        "com.finogeeks": "凡科SDK(finogeeks)",
+        "com.alipay": "支付宝SDK(Alipay)",
+        "com.tencent.mm": "微信SDK(WeChat)",
+        "com.tencent": "腾讯SDK(Tencent)",
+        "com.taobao": "阿里SDK(Taobao)",
+        "com.baidu": "百度SDK(Baidu)",
+        "io.agora": "声网SDK(Agora)",
+        "cn.jpush": "极光推送(JPush)",
+        "com.getui": "个推(Getui)",
+        "com.meituan": "美团SDK(Meituan)",
+    },
+    # dex 输入解析模式: true=二进制字符串直提(秒级, 无组件路径上下文);
+    # false=全量 baksmali 反编译(组件指纹按 smali 路径匹配, 中间产物大且耗时)
+    "dex_strings_direct": True,
     # USCC(统一社会信用代码)格式校验数据:
     # 首位必须是合法的登记管理部门码, 次位必须是合法的机构类别码
     # 用于拒绝恰好通过校验位计算但实际不是信用代码的 hex 串
@@ -436,12 +501,17 @@ DEFAULTS = {
         "dept": "123456789Y",  # 1机构编制 2外交 3教育 4公安 5民政 6司法 7交通 8文化 9工商 Y其他
         "type": "123193",       # 1企业 2个体 3农民专业合作 9其他 1(企业子) 3(事业子) 9(其他子)
     },
+    # PII 测试向量路径降权模式(命中文件路径即标注"疑似测试向量", 子串匹配不区分大小写);
+    # 黑名单与 standalone 边界之后的第二道纵深, 可自行增补(并集合并)
+    "pii_test_paths": [
+        "digest", "crypto", "test", "bouncycastle", "networkbench",
+    ],
     # PII 测试向量黑名单: 密码学库(BC/听云/JDK/RFC)的官方测试数据。
     # 这些数字串恰好通过银行卡 Luhn 校验或手机号段校验, 但不是真实凭据。
     # 命中黑名单的 PII 直接丢弃不进报告; 不在名单但来源可疑的降权标注。
     "pii_test_vectors": [
         # BouncyCastle GOST3411 / LongDigest 测试向量
-        "6272217099150286", "15258229321",
+        "6272217099150286", "15258229321", "17751197731",
         # JDK MessageDigest 测试向量(常见)
         "6162636465666768696a6b6c6d6e6f70",
         # 常见 digest 测试向量前缀(匹配到的标记为疑似)
@@ -1057,6 +1127,14 @@ DEFAULTS = {
 
 # 生成默认 config.toml 时每个配置段的前置说明
 _DOC = {
+    "pii_test_paths": ["PII 测试向量路径降权模式: 命中文件路径即标注 疑似测试向量(子串匹配不区分大小写);",
+                       "standalone 边界与黑名单之后的第二道纵深, 可自行增补(并集合并)"],
+    "dex_strings_direct": ["dex 输入解析模式: true=二进制字符串直提(秒级, 无组件路径上下文, 默认);",
+                           "false=全量 baksmali 反编译(组件指纹按 smali 路径匹配, 中间产物大且耗时)"],
+    "email_tlds": ["Email 顶级域(TLD)白名单: 命中邮箱的域后缀不在名单即拒(过滤 %s@2x.png 类模板串);",
+                   "离线内置常用 gTLD+ccTLD, 可自行增补(并集合并, 新版本新增项自动保留)"],
+    "component_hosts": ["组件宿主 SDK 映射: 组件包路径之前命中的包前缀 -> 宿主名称(多命中取最长);",
+                        "用于归属内嵌副本(如 听云 内嵌的 BouncyCastle); 未命中归属 应用本体"],
     "filter_components": ["组件识别规则: 包名片段 -> 组件与风险说明(按smali路径匹配);",
                           "聚焦存在RCE/CVE的组件(fastjson/Log4j/Shiro/XStream/CC链/XXE等)"],
     "ios_components": ["iOS组件识别: 标记串 -> 组件与风险说明(按二进制strings内容匹配);",
@@ -1150,6 +1228,8 @@ def _toml_key(key):
 
 def _toml_str(value):
     """优先单引号字面量串(反斜杠原样,适合正则)；含单引号/换行时退回基本串并转义。"""
+    if isinstance(value, bool):
+        return "true" if value else "false"
     if "'" not in value and "\n" not in value:
         return "'" + value + "'"
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
@@ -1252,7 +1332,8 @@ def generate_default_toml():
     _DOC["config_version"] = ["配置格式版本(工具自动管理, 勿手动修改)"]
     ordered = ["config_version", "filter_components", "ios_components", "filter_strs", "filter_no", "filter_no_domains",
                "shell_vendors", "apk_permissions", "ios_permissions",
-               "web_file_suffix", "sniffer_filter", "method",
+               "web_file_suffix", "sniffer_filter", "email_tlds", "dex_strings_direct",
+               "method", "component_hosts",
                "filter_ak_map", "filter_pii_map", "headers", "data"]
     table_keys = [key for key in ordered if isinstance(DEFAULTS[key], dict)]
     scalar_keys = [key for key in ordered if key not in table_keys]
@@ -1275,11 +1356,12 @@ DEEP_MERGE_DICT_KEYS = (
     "apk_permissions", "ios_permissions",    # 权限
     "uscc_valid_codes",                      # 格式校验
     "component_versions",                    # 版本影响
+    "component_hosts",                       # 组件宿主归属
 )
 # 需要并集合并的列表键(用户列表 + 代码新增项)
 UNION_MERGE_LIST_KEYS = (
     "filter_strs", "filter_no", "filter_no_domains",
-    "web_file_suffix", "sniffer_filter", "pii_test_vectors",
+    "web_file_suffix", "sniffer_filter", "pii_test_vectors", "email_tlds", "pii_test_paths",
 )
 # TOML 中 {规则集: [正则...]} 落为 [表.规则集名] 下的 rules 数组
 RULE_SET_KEYS = ("filter_ak_map", "filter_pii_map")

@@ -2,6 +2,29 @@
 
 **Language**: [简体中文](update.md) | [English](update_EN.md)
 
+### V1.0.12
+Added:
+- Added component aggregation with host attribution: duplicate copies grouped per host SDK (locating embedded copies in TingYun/UnionPay etc.), component details upgraded to Component/Host/Version/Verdict columns (json/txt/xlsx), unversioned entries marked "version not extracted, manual review"
+- Added three PII rules: HK/Macau travel permit (bare C/H/M+8 form plus keyword-anchored form), driving license (license/archive numbers, keyword-anchored), credit card (Visa/Mastercard/Amex/JCB/UnionPay brand prefixes + Luhn check, merged into the bank-card bucket)
+- Added suspected symmetric-key heuristic (low-confidence annotation for SecretKeySpec adjacent to 16/24/32-byte printable constants, declaring the prefix-less key blind spot)
+- Added Email TLD whitelist (offline built-in gTLD+ccTLD, rejecting template strings like %s@2x.png)
+- Added component_hosts (host SDK mapping) and pii_test_paths (test-vector path downweight) config keys
+- Added direct binary string extraction for dex inputs (enabled by default, completes in seconds; can be disabled to fall back to baksmali for component path context)
+
+Fixed:
+- Fixed shell gate wrongly blocking --prefer-dump and --unpack success/failure fallback paths (explicit unpack works end to end for the first time); unconfirmed shell suspicion now downgrades to a warning and scanning continues
+- Fixed frida being a hard prerequisite for plain scans (only --unpack needs it); --scope file read failure now denies all sniffing
+- Fixed OID pseudo-versions being treated as component versions (prefix filtering for 1.2.840.* etc. plus semantic validation, withdrawing false "safe" verdicts)
+- Fixed a whole class of false positives where numeric PII is embedded in hex/base64 strings (standalone-token boundary for the full document family: ID card/passport/permit/driving license/phone/bank card/credit card/USCC/IMEI/QQ etc.)
+- Fixed environment-dependent red suite in test_provision (find_spec isolated via mock; pass/fail no longer depends on local installs)
+- Fixed directory-input task name truncation (com.nbbank_dex no longer cut to com)
+
+Optimized:
+- Optimized shell detection output stream (suspected line suppressed once vendor is confirmed; quiet process logs in prefer-dump mode)
+- Optimized progress output for non-tty scenarios (chunked printing for background/redirect instead of invisible \r refresh)
+- Optimized PII test-vector defense in depth (path downweight made config-driven covering all PII types, plus neighborhood heuristic annotation)
+- Optimized dependency layering (frida trio split into requirements-unpack.txt; plain scanning no longer requires it)
+
 ### V1.0.11
 Added:
 - Added --unpack flag for explicit APK unpacking (default: report only, no device interaction)

@@ -50,8 +50,9 @@ class BaseTask(object):
                 cores.logp(cores.i18n.t("[*] Scope file loaded: {} domains", len(domains)))
             return set(domains)
         except OSError as e:
-            cores.logp("[-] Failed to read scope file: {}".format(e))
-            return None
+            # 授权边界读失败必须拒止(deny-all): 空集合会让所有域名都出名单, 不回退到不限量嗅探
+            cores.logp("[-] Failed to read scope file: {} — sniffing disabled".format(e))
+            return set()
 
     # 统一调度平台
 
@@ -72,6 +73,10 @@ class BaseTask(object):
         file_queue = task_info["file_queue"]
         shell_flag = task_info["shell_flag"]
         comp_list = task_info["comp_list"]
+        # iOS/web 的组件为行式条目, 统一包装为结构化明细(报告用)
+        comp_detail = task_info.get("comp_detail") or [
+            {"component": c, "desc": "", "host": "应用本体", "version": "", "verdict": ""}
+            for c in comp_list]
         packagename = task_info["packagename"]
         file_identifier = task_info["file_identifier"]
         permissions = task_info["permissions"]
@@ -79,6 +84,8 @@ class BaseTask(object):
 
         if shell_flag:
             cores.logp('[-] \033[3;31m Error: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
+            for line in shell_report:
+                cores.logp("  " + line)
             return
 
         # 线程控制中心
@@ -95,7 +102,7 @@ class BaseTask(object):
 
         # 结果输出中心
         self.__print_control__(packagename, comp_list,
-                               file_identifier, permissions, shell_report)
+                               file_identifier, permissions, shell_report, comp_detail)
 
     def __tast_control__(self):
         task_info = {}
@@ -130,7 +137,7 @@ class BaseTask(object):
             thread.start()
             self.thread_list.append(thread)
 
-    def __print_control__(self, packagename, comp_list, file_identifier, permissions, shell_report):
+    def __print_control__(self, packagename, comp_list, file_identifier, permissions, shell_report, comp_detail=None):
         # 网络嗅探(可选)：返回行数据，xlsx 由 report 统一编排
         sniff_rows = []
         if self.sniffer:
@@ -165,6 +172,7 @@ class BaseTask(object):
             os.path.basename(str(self.path)) or "task", self.types)
         extra = {
             "components": list(comp_list),
+            "components_detail": list(comp_detail or []),
             "permissions": list(permissions),
             "shell": list(shell_report),
             "sniffer": sniff_rows,

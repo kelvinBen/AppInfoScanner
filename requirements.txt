@@ -1,6 +1,4 @@
+# 核心依赖(基础扫描: android/ios/web 三任务)
 requests==2.34.2
 click==8.5.0
 openpyxl==3.1.5
-frida==17.18.0
-frida-tools==14.10.4
-frida-dexdump==2.0.1

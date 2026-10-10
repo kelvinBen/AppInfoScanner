@@ -1,0 +1,4 @@
+# 脱壳功能(--unpack)依赖, 基础扫描不需要; 三件套必须同批升级(core 与设备端 frida-server 同版本)
+frida==17.18.0
+frida-tools==14.10.4
+frida-dexdump==2.0.1

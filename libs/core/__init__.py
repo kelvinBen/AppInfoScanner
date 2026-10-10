@@ -75,7 +75,9 @@ def __sanitize_sample_name__(inputs):
     """从输入样本路径/URL 提取安全的结果目录名。"""
     import re as _re
     raw = os.path.basename(str(inputs).strip()) if inputs else ""
-    raw = raw.rsplit(".", 1)[0] if "." in raw else raw
+    # 目录名可能含点(如 com.nbbank_dex), 仅文件输入才剥扩展名
+    if "." in raw and not os.path.isdir(str(inputs).strip()):
+        raw = raw.rsplit(".", 1)[0]
     raw = _re.sub(r"[^\w\u4e00-\u9fa5.-]", "_", raw).strip("._") or "task"
     return raw[:60]
 
@@ -135,16 +137,30 @@ def logexc(tag):
         logger.exception(tag)
 
 
-# 过程信息单行刷新
+# 过程信息单行刷新; 非 tty(后台/重定向)时 \r 无覆盖效果, 降级为按块打印
+_progress_is_tty = None
+_progress_tick = 0
+_PROGRESS_BLOCK = 50  # 非 tty 模式每 50 次输出一行
+
+
 def progress(msg):
-    global _progress_last
+    global _progress_last, _progress_is_tty, _progress_tick
     msg = i18n.ts(msg)
     logf(msg)
+    if _progress_is_tty is None:
+        _progress_is_tty = bool(getattr(_sys.stdout, "isatty", lambda: False)())
     with _progress_lock:
-        pad = " " * max(0, len(_progress_last) - len(msg))
-        _sys.stdout.write("\r" + msg + pad)
-        _sys.stdout.flush()
-        _progress_last = msg
+        if _progress_is_tty:
+            pad = " " * max(0, len(_progress_last) - len(msg))
+            _sys.stdout.write("\r" + msg + pad)
+            _sys.stdout.flush()
+            _progress_last = msg
+        else:
+            # 按块降级: 首条立即输出, 之后每 _PROGRESS_BLOCK 条换行一次
+            _progress_tick += 1
+            if _progress_tick == 1 or _progress_tick % _PROGRESS_BLOCK == 0:
+                _sys.stdout.write(msg + "\n")
+                _sys.stdout.flush()
 
 
 # 进度行上方插入完整输出
@@ -165,7 +181,7 @@ def progress_end():
         if _progress_last:
             _sys.stdout.write("\n")
             _sys.stdout.flush()
-            _progress_last = ""
+        _progress_last = ""
 
 
 class Bootstrapper(object):

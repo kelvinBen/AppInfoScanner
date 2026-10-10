@@ -106,7 +106,8 @@ def pinned_frida_requirements():
     try:
         # Bootstrapper 正常会设置 script_root_dir；单测等场景回退 cwd
         script_dir = getattr(cores, "script_root_dir", "") or os.getcwd()
-        with open(os.path.join(script_dir, "requirements.txt"), "r", encoding="utf-8") as f:
+        # frida 三件套 pin 自 V1.0.12 起拆至 requirements-unpack.txt(依赖分层)
+        with open(os.path.join(script_dir, "requirements-unpack.txt"), "r", encoding="utf-8") as f:
             content = f.read()
     except OSError:
         return list(_FRIDA_PKGS)

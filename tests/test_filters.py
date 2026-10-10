@@ -16,6 +16,7 @@ from tests import load_runtime_config
 load_runtime_config()
 import libs.core as cores
 from libs.core.parses import ParsesThreads
+from libs.task.base_task import BaseTask
 
 
 def scan_content(content, types="Android"):
@@ -143,3 +144,220 @@ class TestUSCCFormat(unittest.TestCase):
         # 纯 hex 串不是合法信用代码(首位 7 对应工商但次位 0 不在合法集)
         self.assertFalse(scan_content('uscc: 704313664479786E81')
                          and any("USCC" in r for r in scan_content('uscc: 704313664479786E81')))
+
+
+class TestPIIStandalone(unittest.TestCase):
+    # 12-5: 数字/证件类完全匹配——内嵌于 hex/base64 blob 的片段整类消灭
+    BLOB = ("b259d2d6e627a768c94be36164c2d9fc79d97aab9253140e5bf17751197731d6f7540d2509"
+            "e7b9ffee0a70a6e26d56e92d2edd7f85aba85600b69089f35f6bdbf3c298e05842535d9f06"
+            "4e6b0391cb7d306e0a2d20c4dfb4e7b49a9640bdea26c10ad69c3f05007ce2513cee44cfe0"
+            "1998e62b6c3637d3fc0391079b26ee36d5")
+
+    def test_hex_blob_embeds_nothing(self):
+        results = scan_content(self.BLOB)
+        for name in ("Phone_CN", "BankCard_CN", "IDCard_CN_18", "USCC_CN"):
+            self.assertFalse(any("[%s]" % name in r for r in results), name)
+
+    def test_standalone_phone_still_hits(self):
+        self.assertTrue(any("Phone_CN" in r for r in scan_content("tel: 13912345678,")))
+
+    def test_vector_17751197731_dropped(self):
+        self.assertFalse(any("Phone_CN" in r for r in scan_content("id: 17751197731,")))
+
+
+class TestBankCardLuhn(unittest.TestCase):
+    # 12-5: 银行卡/信用卡合桶 + Luhn 后验
+    def test_unionpay_valid(self):
+        self.assertTrue(any("BankCard_CN" in r for r in scan_content("卡号: 6212345678901232")))
+
+    def test_brand_prefixes(self):
+        for pan in ("4111111111111111", "5500005555555559", "378282246310005", "3530111333300000"):
+            self.assertTrue(any("BankCard_CN" in r for r in scan_content("pan: " + pan)), pan)
+
+    def test_luhn_fail_rejected(self):
+        self.assertFalse(any("BankCard_CN" in r for r in scan_content("pan: 4111111111111112")))
+
+    def test_embedded_card_rejected(self):
+        self.assertFalse(any("BankCard_CN" in r for r in scan_content("x6212345678901232x")))
+
+
+class TestNewDocumentRules(unittest.TestCase):
+    # 12-5: 港澳通行证(裸字母+锚定)与驾驶证(仅锚定)
+    def test_permit_bare_letter_form(self):
+        self.assertTrue(any("HK_Macau_Permit" in r for r in scan_content("code C12345678 end")))
+
+    def test_permit_anchored_9digit(self):
+        self.assertTrue(any("HK_Macau_Permit" in r for r in scan_content("港澳通行证：123456789")))
+
+    def test_permit_c9_rejected(self):
+        self.assertFalse(any("HK_Macau_Permit" in r for r in scan_content("code C123456789 end")))
+
+    def test_driving_license_anchored(self):
+        self.assertTrue(any("Driving_License" in r for r in scan_content("驾驶证号:330227199303025415")))
+
+    def test_driving_license_archive_no(self):
+        self.assertTrue(any("Driving_License" in r for r in scan_content("档案编号: 330224123456")))
+
+    def test_driving_license_bare_rejected(self):
+        self.assertFalse(any("Driving_License" in r for r in scan_content("no 330224123456 here")))
+
+
+class TestEmailTLD(unittest.TestCase):
+    # 12-5: Email 顶级域白名单
+    def test_common_tld_hits(self):
+        self.assertTrue(any("Email" in r for r in scan_content("mail: admin@mycompany.cn")))
+
+    def test_png_template_rejected(self):
+        self.assertFalse(any("Email" in r for r in scan_content("img: %s@2x.png")))
+
+    def test_new_gtld_hits(self):
+        self.assertTrue(any("Email" in r for r in scan_content("dev mail: ops@team.dev")))
+
+
+class TestProgressTty(unittest.TestCase):
+    # 12-7: 非 tty 降级为按块打印, tty 保持 \r 单行刷新
+    def _reset(self):
+        import libs.core as cores
+        cores._progress_is_tty = None
+        cores._progress_tick = 0
+        cores._progress_last = ""
+
+    def test_non_tty_block_printing(self):
+        import io as _io
+        import contextlib
+        import libs.core as cores
+        self._reset()
+        buf = _io.StringIO()   # StringIO 无 isatty -> 非 tty 分支
+        with contextlib.redirect_stdout(buf):
+            for i in range(120):
+                cores.progress("scan %d" % i)
+        lines = [l for l in buf.getvalue().splitlines() if l.strip()]
+        self.assertEqual(len(lines), 3)  # 首条 + 50/100 两条
+        self.assertNotIn("\r", lines[0])
+
+    def test_tty_single_line_refresh(self):
+        import contextlib
+        import libs.core as cores
+        self._reset()
+
+        class FakeTty:
+            def write(self, s):
+                self.chunks.append(s)
+
+            def flush(self):
+                pass
+
+            @staticmethod
+            def isatty():
+                return True
+
+        fake = FakeTty()
+        fake.chunks = []
+        with contextlib.redirect_stdout(fake):
+            cores.progress("aaa")
+            cores.progress("b")
+        self.assertTrue(all(c.startswith("\r") for c in fake.chunks))
+
+
+class TestSampleName(unittest.TestCase):
+    # 12-8: 目录名含点不剥扩展名, 文件名照常剥
+    def test_directory_name_kept(self):
+        import tempfile, os
+        import libs.core as cores
+        d = os.path.join(tempfile.mkdtemp(), "com.nbbank_dex")
+        os.makedirs(d, exist_ok=True)
+        self.assertEqual(cores.__sanitize_sample_name__(d), "com.nbbank_dex")
+
+    def test_file_extension_stripped(self):
+        import libs.core as cores
+        self.assertEqual(cores.__sanitize_sample_name__("/tmp/app.apk"), "app")
+
+    def test_url_input(self):
+        import libs.core as cores
+        self.assertEqual(cores.__sanitize_sample_name__("https://x.cn/a/app.apk?t=1"), "app")
+
+
+class TestSuspectedSecretKey(unittest.TestCase):
+    # 12-10: SecretKeySpec 紧邻 16/24/32 字节可打印常量 -> 疑似对称密钥(低置信)
+    def test_smali_const_string_key(self):
+        content = ('invoke-static {}, Ljavax/crypto/spec/SecretKeySpec;-><init>'
+                   'const-string v0, "0123456789abcdef"')
+        self.assertTrue(any("Suspected_SecretKey" in r for r in scan_content(content)))
+
+    def test_java_literal_key(self):
+        content = 'new SecretKeySpec("0123456789abcdef01234567".getBytes(), "AES")'
+        results = scan_content(content)
+        self.assertTrue(any("Suspected_SecretKey]-->: 0123456789abcdef01234567" in r for r in results))
+
+    def test_odd_length_rejected(self):
+        content = 'SecretKeySpec "0123456789abcdef0" x'   # 17 位
+        self.assertFalse(any("Suspected_SecretKey" in r for r in scan_content(content)))
+
+    def test_no_secretkeyspec_no_hit(self):
+        content = 'const-string v0, "0123456789abcdef"'
+        self.assertFalse(any("Suspected_SecretKey" in r for r in scan_content(content)))
+
+
+class TestPIIDepthDefense(unittest.TestCase):
+    # 12-13: 路径降权 config 化 + 邻域启发式
+    def scan_at(self, rel_dir, content):
+        import tempfile, os
+        from queue import Queue
+        from threading import Lock
+        from libs.core.parses import ParsesThreads
+        tmp = tempfile.mkdtemp()
+        d = os.path.join(tmp, rel_dir)
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, "x.js")
+        open(path, "w").write(content)
+        q = Queue(); q.put(path)
+        pt = ParsesThreads(1, "t", q, {}, "Android")
+        pt.threadLock = Lock()
+        import contextlib, io as _io
+        with contextlib.redirect_stdout(_io.StringIO()):
+            pt.__regular_parse__()
+        return list(pt.result_list)
+
+    def test_path_downweight_configured(self):
+        results = self.scan_at("smali/org/bouncycastle", "tel: 13912345678,")
+        self.assertTrue(any("13912345678 (疑似测试向量, 来源: 测试数据路径)" in r for r in results))
+
+    def test_plain_path_not_downweighted(self):
+        results = self.scan_at("assets/js", "tel: 13912345678,")
+        self.assertTrue(any("Phone_CN" in r for r in results))
+        self.assertFalse(any("疑似测试向量" in r for r in results))
+
+    def test_neighborhood_hex_downweight(self):
+        # 命中值附近存在长 hex(测试数据成组特征) -> 上下文降权
+        content = "phone 13912345678 hash 5bdcc146bf60754e6a042426089575c7f1"
+        results = self.scan_at("assets/js", content)
+        self.assertTrue(any("(疑似测试向量, 来源: 上下文特征)" in r for r in results))
+
+    def test_neighborhood_negative(self):
+        results = self.scan_at("assets/js", "tel: 13912345678,")
+        self.assertFalse(any("疑似测试向量" in r for r in results))
+
+
+class TestScopeFileLoading(unittest.TestCase):
+    def make_task(self, scope_arg):
+        return BaseTask("Android", "/tmp/x.apk", scope=scope_arg)
+
+    def test_scope_file_loaded(self):
+        fd, path = tempfile.mkstemp(suffix=".txt")
+        with os.fdopen(fd, "w") as f:
+            f.write("Example.com\n# comment\napi.foo.cn\n")
+        task = self.make_task(path)
+        self.assertEqual(task.scope_domains, {"example.com", "api.foo.cn"})
+        os.unlink(path)
+
+    def test_scope_missing_file_denies_all(self):
+        # 清单读失败必须 deny-all(空集合), 不能回退成不限量嗅探
+        task = self.make_task("/tmp/__no_such_scope__.txt")
+        self.assertEqual(task.scope_domains, set())
+
+    def test_scope_empty_file_denies_all(self):
+        fd, path = tempfile.mkstemp(suffix=".txt")
+        os.fdopen(fd, "w").close()
+        task = self.make_task(path)
+        self.assertEqual(task.scope_domains, set())
+        os.unlink(path)

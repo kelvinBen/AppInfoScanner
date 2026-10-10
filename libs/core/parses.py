@@ -53,7 +53,7 @@ class ParsesThreads(threading.Thread):
             "Phone_CN": lambda c: re.search(r"\d{11}", c) is not None,
             "IDCard_CN_18": lambda c: re.search(r"\d{17}[\dXx]", c) is not None,
             "Email": lambda c: "@" in c,
-            "BankCard_CN": lambda c: "62" in c,
+            "BankCard_CN": lambda c: re.search(r"\d{13,19}", c) is not None,
             "Plate_CN": lambda c: any(ch in c for ch in province_chars),
             "Person_Name_CN": lambda c: any(kw in c for kw in ("姓名", "联系人", "收货人", "经办人")),
             "QQ_Number": lambda c: "qq" in c.lower() or "扣扣" in c,
@@ -64,6 +64,8 @@ class ParsesThreads(threading.Thread):
             "IMEI": lambda c: "imei" in c.lower() or "device" in c.lower(),
             "Phone_Intl": lambda c: "+" in c and any(kw in c.lower() for kw in ("tel", "phone", "mobile")),
             "Address_CN": lambda c: any(kw in c for kw in ("地址", "住址", "收货")),
+            "HK_Macau_Permit": lambda c: re.search(r"[CHMchm]\d{8}|\d{9}", c) is not None,
+            "Driving_License": lambda c: any(kw in c for kw in ("驾驶证", "档案编号", "驾证号")),
         }
 
     # AK/SK前缀分桶: 从正则中提取字面前缀, 按前缀存在性快速跳过
@@ -181,7 +183,10 @@ class ParsesThreads(threading.Thread):
 
             # PII 检测: 触发预判(必要条件不满足则跳过正则)
             test_vectors = set(getattr(cores.config, "pii_test_vectors", []))
-            is_digest_path = "digest" in file_path.lower() or "crypto" in file_path.lower()
+            email_tlds = set(getattr(cores.config, "email_tlds", ()))
+            # 路径降权模式 config 化(原硬编码 digest/crypto 两词), 覆盖全部 PII 类型
+            lowered_path = file_path.lower()
+            is_test_path = any(p in lowered_path for p in getattr(cores.config, "pii_test_paths", ()))
 
             for name, pattern in self._compiled_pii:
                 # 快速必要条件检查
@@ -198,21 +203,52 @@ class ParsesThreads(threading.Thread):
                         continue
                     if name == "USCC_CN" and not self.__valid_uscc__(value):
                         continue
-                    if name == "Email" and self.__is_public_host__(self.__extract_host__("mailto:" + value)):
+                    if name == "BankCard_CN" and not self.__valid_luhn__(value):
                         continue
+                    if name == "Email":
+                        # 顶级域白名单: 域后缀不在名单(png/模板串等)直接拒
+                        tld = value.rsplit("@", 1)[-1].lower().rsplit(".", 1)[-1]
+                        if tld not in email_tlds:
+                            continue
+                        if self.__is_public_host__(self.__extract_host__("mailto:" + value)):
+                            continue
                     # 已知测试向量直接丢弃
                     if value in test_vectors:
                         cores.logf("[PII-SKIP] known test vector: " + value)
                         continue
-                    # 可疑来源降权标注, 留给人工判断
-                    if is_digest_path and name in ("BankCard_CN", "Phone_CN"):
-                        value = value + " (疑似测试向量, 来源: crypto/digest 路径)"
+                    # 可疑来源降权标注(只标注不删除, 留给人工判断):
+                    # 路径降权 + 邻域启发式(成组出现、紧邻断言/长hex 是测试向量本质特征)
+                    if is_test_path:
+                        value = value + " (疑似测试向量, 来源: 测试数据路径)"
+                    else:
+                        pos = file_content.find(value)
+                        if pos >= 0:
+                            window = file_content[max(0, pos - 120): pos + len(value) + 120]
+                            if re.search(r"[0-9a-fA-F]{24,}", window) or re.search(
+                                    r"expected|vector|assert", window, re.I):
+                                value = value + " (疑似测试向量, 来源: 上下文特征)"
                     entry = ("[%s]-->: %s") % (name, value)
                     if entry not in self.result_list:
                         self.threadLock.acquire()
                         if entry not in self.result_list:
                             self.result_list.append(entry)
                             cores.notice("[!][%s] %s" % (name, value))
+                        self.threadLock.release()
+
+            # 无前缀对称密钥启发式(低置信, 归 other 桶不冒充凭据):
+            # 文件提及 SecretKeySpec 且存在 16/24/32 字节可打印常量(AES 密钥/IV 典型长度);
+            # 产出兼作后续加密库找钥(V1.0.14 14-2)的候选源
+            if "SecretKeySpec" in file_content:
+                for m in re.finditer(r'"([A-Za-z0-9+/=_-]{16,32})"', file_content):
+                    cand = m.group(1)
+                    if len(cand) not in (16, 24, 32):
+                        continue
+                    entry = "[Suspected_SecretKey]-->: %s" % cand
+                    if entry not in self.result_list:
+                        self.threadLock.acquire()
+                        if entry not in self.result_list:
+                            self.result_list.append(entry)
+                            cores.notice("[!][Suspected_SecretKey] %s" % cand)
                         self.threadLock.release()
 
             # 遍历所有的字符串
@@ -237,6 +273,19 @@ class ParsesThreads(threading.Thread):
     # 统一社会信用代码校验位(GB 32100-2015, MOD 31)：31字符集，权重为 3^(i) mod 31
     _USCC_CHARS = "0123456789ABCDEFGHJKLMNPQRTUWXY"
     _USCC_WEIGHTS = (1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28)
+
+    # 银行卡/信用卡 Luhn 校验(MOD 10): 偶位翻倍求和, 总和模 10 为 0
+    @staticmethod
+    def __valid_luhn__(value):
+        digits = [int(d) for d in value if d.isdigit()]
+        total = 0
+        for i, d in enumerate(reversed(digits)):
+            if i % 2 == 1:
+                d *= 2
+                if d > 9:
+                    d -= 9
+            total += d
+        return total % 10 == 0
 
     # 18位身份证校验位验证
     def __valid_idcard__(self, value):

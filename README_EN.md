@@ -1,6 +1,6 @@
 # AppInfoScanner (English)
 
-![License](https://img.shields.io/badge/Version-V1.0.11-red) ![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange) [![HitCount](https://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner.svg?style=flat&show=unique)](http://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner)
+![License](https://img.shields.io/badge/Version-V1.0.12-red) ![Language](https://img.shields.io/badge/Language-Python3-blue) ![License](https://img.shields.io/badge/License-GPL3.0-orange) [![HitCount](https://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner.svg?style=flat&show=unique)](http://hits.dwyl.com/kelvinBen/kelvinBen/AppInfoScanner)
 
 **Language**: [简体中文](README.md) | [English](README_EN.md)
 
@@ -106,7 +106,8 @@ AppInfoScanner
         |-- unpacker Windows unpacking tools (adb/aapt/frida-server)
     |-- tests Unit tests (python3 -m unittest discover -s tests)
     |-- app.py Main program
-    |-- requirements.txt Dependencies (explicit versions)
+    |-- requirements.txt Core dependencies (explicit versions)
+    |-- requirements-unpack.txt Unpacking dependencies (frida trio, only for --unpack)
     |-- README.md / README_EN.md Documentation (CN/EN)
     |-- update.md / update_EN.md Changelog (CN/EN)
 ```
@@ -130,6 +131,8 @@ AppInfoScanner
 ```
     cd AppInfoScanner
     python -m pip install -r requirements.txt
+    # 如需脱壳(--unpack)再安装:
+    python -m pip install -r requirements-unpack.txt
 ```
 
 3. Run (basic)

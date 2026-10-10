@@ -24,6 +24,7 @@ class AndroidTask(object):
         self.package = package
         self.unpack_enabled = unpack
         self.prefer_dump = prefer_dump
+        self._quiet_shell_logs = bool(prefer_dump)  # prefer-dump 场景静默壳过程日志
         self.file_queue = Queue()
         self.shell_flag = False
         self.shell_confirmed = False  # 厂商签名已确认(脱壳前置条件)
@@ -33,6 +34,8 @@ class AndroidTask(object):
         self.file_identifier = []
         self.permissions = []
         self.files = []
+        self.comp_detail = []   # 结构化组件明细(报告用)
+        self._comp_index = {}   # 聚合索引: 组件 -> {desc, hosts: {宿主: [(版本,结论)]}}
 
     def start(self):
         # 环境检查 + 自动供给: mac/Linux 缺失时经包管理器/pip 自动安装(provision)
@@ -43,10 +46,6 @@ class AndroidTask(object):
         if subprocess.call(["java", "-version"], stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL) != 0:
             raise Exception(cores.i18n.t("Please install the Java environment!"))
-        cores.logf("[CMD] frida --version")
-        if shutil.which("frida") is None and not provision.ensure_frida():
-            raise Exception(cores.i18n.t("Please install the Frida environment!"))
-
         input_file_path = self.path
         if os.path.isdir(input_file_path):
             self.__decode_dir__(input_file_path)
@@ -57,20 +56,40 @@ class AndroidTask(object):
 
         # 脱壳决策: --prefer-dump 直接扫描已有dump; --unpack 才走脱壳流程;
         # 壳确认但未指定 --unpack 时仅提示不动设备(防止破坏渗透现场)
+        shell_handled = False
         if getattr(self, "prefer_dump", None):
             cores.logp(cores.i18n.t("[*] Scanning pre-dumped DEX from: {}", self.prefer_dump))
             self.__decode_dir__(self.prefer_dump)
+            shell_handled = True
         elif self.shell_confirmed and getattr(self, "unpack_enabled", False):
-            if not self.__android_unpack__():
+            # frida 仅是显式脱壳的前置条件, 缺失时降级静态扫描而不阻断任务
+            cores.logf("[CMD] frida --version")
+            if shutil.which("frida") is None and not provision.ensure_frida():
+                cores.logp("[-] Frida environment missing; unpack skipped, continuing with static scan")
+            elif not self.__android_unpack__():
                 cores.logp(cores.i18n.t(
                     "[*] Unpack failed, continuing with static scan of decoded artifacts"))
+            shell_handled = True
         elif self.shell_confirmed:
             cores.logp("[!] Shell confirmed but --unpack not specified; skipping device interaction")
             cores.logp("[*] Tip: rerun with --unpack to unpack, or --prefer-dump <dir> to scan existing DEX dumps")
 
-        return {"comp_list": self.comp_list, "shell_flag": self.shell_flag, "file_queue": self.file_queue,
+        self.__gate_shell_flag__(shell_handled)
+
+        self.__render_components__()
+
+        return {"comp_list": self.comp_list, "comp_detail": self.comp_detail, "shell_flag": self.shell_flag, "file_queue": self.file_queue,
                 "packagename": self.packagename, "file_identifier": self.file_identifier,
                 "permissions": self.permissions, "shell_report": self.shell_report}
+
+    # 壳门控裁决: 已处置(prefer-dump/脱壳或降级)或仅疑似未确认时放行扫描,
+    # 仅"已确认壳且未处置"保留中止(base_task 的遗留闸门只应拦这一种)
+    def __gate_shell_flag__(self, shell_handled):
+        if self.shell_flag and not self.shell_confirmed:
+            cores.logp("[!] Shell suspected but unconfirmed; continuing scan, results may be incomplete")
+            self.shell_flag = False
+        elif self.shell_flag and shell_handled:
+            self.shell_flag = False
 
     UNPACK_TIMEOUT = 120  # 各阶段超时(秒), 反调试拦截时避免无限等待
 
@@ -186,7 +205,11 @@ class AndroidTask(object):
             output_path = os.path.join(base_out_path, dex_md5)
             if not os.path.exists(output_path):
                 os.makedirs(output_path)
-            self.__decode_dex__(file_path, backsmali_path, output_path)
+            # dex 默认二进制字符串直提(秒级); 需要组件路径上下文时可关掉回退 baksmali
+            if getattr(cores.config, "dex_strings_direct", True):
+                self.__strings_from_dex__(file_path, output_path)
+            else:
+                self.__decode_dex__(file_path, backsmali_path, output_path)
         else:
             return "error"
 
@@ -288,6 +311,48 @@ class AndroidTask(object):
                 zout.writestr(item, data)
         os.replace(temp_path, apk_path)
 
+    # dex 二进制字符串直提: 跳过全量 baksmali(中间产物大/耗时分钟级), 秒级提取;
+    # 无 smali 路径上下文, 组件按包名标记匹配且不标注版本与宿主
+    _STRINGS_CHUNK_LIMIT = 8 * 1024 * 1024  # 单文件上限(扫描线程有 10MB 文件门限)
+
+    def __strings_from_dex__(self, file_path, output_path):
+        total = written = chunk_id = 0
+        fout = open(os.path.join(output_path, "strings_%02d.txt" % (chunk_id + 1)),
+                    "w", encoding="utf-8", errors="ignore")
+        with open(file_path, "rb") as fin:
+            for line in fin:
+                for m in re.finditer(rb"[ -~]{4,}", line):
+                    text = m.group().decode("ascii", "ignore")
+                    fout.write(text + "\n")
+                    written += len(text) + 1
+                    total += 1
+                    if written >= self._STRINGS_CHUNK_LIMIT:
+                        fout.close()
+                        chunk_id += 1
+                        written = 0
+                        fout = open(os.path.join(output_path, "strings_%02d.txt" % (chunk_id + 1)),
+                                    "w", encoding="utf-8", errors="ignore")
+        fout.close()
+        chunk_count = chunk_id + 1
+        cores.logp(cores.i18n.t(
+            "[*] dex direct strings: {} ({} strings, {} files)",
+            os.path.basename(file_path), total, chunk_count))
+        # 入队扫描 + 组件包名标记匹配(直提模式无路径上下文)
+        components = cores.config.filter_components.items() if isinstance(
+            cores.config.filter_components, dict) else (
+            (component, None) for component in cores.config.filter_components)
+        for i in range(1, chunk_count + 1):
+            txt = os.path.join(output_path, "strings_%02d.txt" % i)
+            self.file_queue.put(txt)
+            with open(txt, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            for component, desc in components:
+                if component.replace(".", "/") in content:
+                    base = "{} ({})".format(component, desc) if desc else component
+                    entry = base + " [直提模式, 无路径归属]"
+                    if entry not in self.comp_list:
+                        self.comp_list.append(entry)
+
     # 分解dex: baksmali返回非零不等于无产物(依赖错误只影响部分类), 有smali就继续扫
     def __decode_dex__(self, file_path, backsmali_path, output_path):
         cores.logf("[CMD] java -jar {} d {} -o {}".format(backsmali_path, file_path, output_path))
@@ -359,48 +424,104 @@ class AndroidTask(object):
                 for component, desc in components:
                     comp = component.replace(".", "/")
                     if comp in dir_file_path:
-                        # 尝试提取组件版本号并给出受影响结论
-                        version_note = self.__extract_component_version__(
-                            component, dir_file_path)
-                        base = "{} ({})".format(component, desc) if desc else component
-                        entry = base + version_note if version_note else base
-                        if entry not in self.comp_list:
-                            self.comp_list.append(entry)
+                        # 聚合索引: 同组件多副本按宿主归组, 渲染统一在 start() 末尾
+                        host = self.__match_component_host__(dir_file_path, comp)
+                        ver = self.__extract_component_version__(component, dir_file_path)
+                        info = self._comp_index.setdefault(component, {"desc": desc, "hosts": {}})
+                        host_vers = info["hosts"].setdefault(host, [])
+                        if ver and ver not in host_vers:
+                            host_vers.append(ver)
 
-    # 从smali提取组件版本号, 对照CVE影响范围表给出受影响/安全结论
+    # 从smali提取组件版本号, 对照CVE影响范围表给出(版本, 结论)二元组;
+    # OID 伪版本(RSA/证书策略/密钥算法等)一律视为未提取到, 不做影响判定
     def __extract_component_version__(self, component, smali_path):
         version_rules = getattr(cores.config, "component_versions", {})
         rule = version_rules.get(component)
         if not rule:
-            return ""
+            return None
         try:
             with open(smali_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read(512 * 1024)  # 只读前 512KB
+            candidates = []
             # 方式1: version_field (如 fastjson 的 Version.VERSION)
-            ver = None
             if rule.get("version_field"):
-                pat = re.compile(
-                    r'const-string.*"' + re.escape(rule["version_field"]) + r'".*?"([\d.]+)"')
-                m = pat.search(content)
+                m = re.compile(
+                    r'const-string.*"' + re.escape(rule["version_field"]) + r'".*?"([\d.]+)"').search(content)
                 if m:
-                    ver = m.group(1)
-            if not ver and rule.get("version_pattern"):
+                    candidates.append(m.group(1))
+            # 方式2: version_pattern (如 bcprov 的版本串)
+            if rule.get("version_pattern"):
                 m = re.compile(rule["version_pattern"]).search(content)
                 if m:
-                    ver = m.group(1)
-            if not ver:
-                # 兜底: 取文件前 8KB 中的第一个 x.y.z 串
-                m = re.compile(r'"(\d+\.\d+\.\d+)"').search(content[:8192])
-                if m:
-                    ver = m.group(1)
-            if not ver:
-                return ""
-            safe = rule.get("safe_above", "")
-            if safe and self.__version_lt__(ver, safe):
-                return " [v{}, {}]".format(ver, rule.get("cve", "受影响"))
-            return " [v{}, 安全]".format(ver)
+                    candidates.append(m.group(1))
+            # 方式3 兜底: 文件前 8KB 的第一个 x.y.z 串
+            m = re.compile(r'"(\d+\.\d+\.\d+)"').search(content[:8192])
+            if m:
+                candidates.append(m.group(1))
+            for ver in candidates:
+                if not self.__version_valid__(ver):
+                    continue
+                safe = rule.get("safe_above", "")
+                if safe and self.__version_lt__(ver, safe):
+                    return (ver, rule.get("cve", "受影响"))
+                return (ver, "安全")
+            return None
         except Exception:
-            return ""
+            return None
+
+    # 版本号语义校验: 拒绝 OID 形态(1.2.840.*/2.5.*/1.3.6.1.*/1.3.101*)与
+    # 不合理段值(超过4段/major>20/段值>999), 防止把加密库常量当版本做判定
+    @staticmethod
+    def __version_valid__(ver):
+        oid_prefixes = ("1.2.840.", "2.5.", "1.3.6.1.", "1.3.101")
+        if any(ver.startswith(p) for p in oid_prefixes):
+            return False
+        segs = ver.split(".")
+        if not segs or len(segs) > 4:
+            return False
+        for s in segs:
+            if not s.isdigit() or len(s) > 3 or int(s) > 999:
+                return False
+        return int(segs[0]) <= 20
+
+    # 从 smali 路径推断宿主 SDK: 组件包路径之前的包段命中宿主映射则归属,
+    # 多命中取最长前缀; 未命中归属"应用本体"
+    @staticmethod
+    def __match_component_host__(file_path, comp_path):
+        hosts = getattr(cores.config, "component_hosts", {})
+        pos = file_path.find(comp_path)
+        prefix = file_path[:pos] if pos > 0 else ""
+        best, best_name = "", "应用本体"
+        for pkg, name in hosts.items():
+            seg = pkg.replace(".", "/") + "/"
+            if seg in prefix and len(pkg) > len(best):
+                best, best_name = pkg, name
+        return best_name
+
+    # 聚合渲染组件条目: 同组件多副本按宿主归组去重; 有版本规则的组件未提取
+    # 到版本时标注人工核; 输出行式条目(comp_list)与结构化明细(comp_detail)双形态
+    def __render_components__(self):
+        has_rule = lambda c: c in getattr(cores.config, "component_versions", {})
+        for component, info in self._comp_index.items():
+            base = "{} ({})".format(component, info["desc"]) if info["desc"] else component
+            parts = []
+            for host, versions in info["hosts"].items():
+                if versions:
+                    vers_note = " ".join("[v{}, {}]".format(v, d) for v, d in versions)
+                    row_version = ", ".join(v for v, _ in versions)
+                    row_verdict = "; ".join(d for _, d in versions)
+                elif has_rule(component):
+                    vers_note = "[版本未提取到, 人工核]"
+                    row_version, row_verdict = "", "人工核"
+                else:
+                    vers_note, row_version, row_verdict = "", "", ""
+                parts.append((host, vers_note))
+                self.comp_detail.append({
+                    "component": component, "desc": info["desc"] or "",
+                    "host": host, "version": row_version, "verdict": row_verdict})
+            host_notes = "; ".join(
+                (note + " @" + host) if note else ("@" + host) for host, note in parts)
+            self.comp_list.append("{} {}".format(base, host_notes).rstrip())
 
     # 语义化版本比较: a < b 返回 True
     @staticmethod
@@ -415,6 +536,11 @@ class AndroidTask(object):
             if va > vb:
                 return False
         return False
+
+    # 壳检测过程日志: prefer-dump 场景静默(shell_report 仍完整记录)
+    def __shell_log__(self, msg):
+        if not self._quiet_shell_logs:
+            cores.logp(msg)
 
     # 按application类名定位加固厂商
     def __match_shell_vendor__(self, app_class):
@@ -443,7 +569,7 @@ class AndroidTask(object):
             all_signatures.update(info.get("so", []))
             all_signatures.update(info.get("assets", []))
         if not all_signatures:
-            cores.logp("[*] Shell confirmed by manifest only (无文件特征记录)")
+            self.__shell_log__("[*] Shell confirmed by manifest only (无文件特征记录)")
             return
         hits = []
         for root, _, files in os.walk(output):
@@ -456,13 +582,13 @@ class AndroidTask(object):
             matched = [name for name, info in candidates.items()
                        if any(sig in (info.get("so", []) + info.get("assets", [])) for sig in hits)]
             msg = "Shell file signatures confirmed ({}): {}".format(", ".join(matched), ", ".join(hits))
-            cores.logp("[*] " + msg)
+            self.__shell_log__("[*] " + msg)
             self.shell_report.append(msg)
             # 不再直接调 __android_unpack__: 由 BaseTask 根据 --unpack 决定
             self.shell_confirmed = True
         else:
             msg = "Shell suspected but no vendor signature found in decoded output"
-            cores.logp("[*] " + msg)
+            self.__shell_log__("[*] " + msg)
             self.shell_report.append(msg)
 
     def __shell_test__(self, output):
@@ -486,7 +612,7 @@ class AndroidTask(object):
                 if vendor:
                     self.shell_flag = True
                     msg = "Detect shell by manifest: {} (加固厂商: {})".format(aname[0], vendor)
-                    cores.logp("[*] " + msg)
+                    self.__shell_log__("[*] " + msg)
                     self.shell_report.append(msg)
                     self.__confirm_shell__(output, vendor)
 
@@ -502,12 +628,14 @@ class AndroidTask(object):
                         "{} ({})".format(ampermission, desc) if desc else ampermission)
 
             # 经验规则门控：壳加密业务 dex 后，应用包名在 dex 包结构中缺失。
-            # 类名门控未命中时启用，命中后跨厂商扫签名定位加固厂商
+            # 类名门控未命中时启用，命中后跨厂商扫签名定位加固厂商;
+            # 厂商签名确认成功则只报厂商结论, 未确认才输出 Suspected 启发式行
             if not self.shell_flag and self.packagename:
                 if not self.__package_in_dex__(output, self.packagename):
                     self.shell_flag = True
-                    msg = "Suspected shell: package {} not found in any dex (业务dex被壳加密的典型特征)".format(
-                        self.packagename)
-                    cores.logp("[*] " + msg)
-                    self.shell_report.append(msg)
                     self.__confirm_shell__(output, None)
+                    if not self.shell_confirmed:
+                        msg = "Suspected shell: package {} not found in any dex (业务dex被壳加密的典型特征)".format(
+                            self.packagename)
+                        self.__shell_log__("[*] " + msg)
+                        self.shell_report.append(msg)
