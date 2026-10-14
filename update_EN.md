@@ -26,6 +26,7 @@ Added:
 - Added direct binary string extraction for dex inputs (enabled by default, completes in seconds; can be disabled to fall back to baksmali for component path context)
 
 Fixed:
+- Fixed runaway report size: per-file hit collection reset (details section no longer a files-x-hits cartesian product, the 10M-line root cause); per-value file lists capped at 20 (json gains files_total true count; txt/xlsx counts unchanged); host shape validation added to the domain list (template fragments like "or wss"/"%1$s" rejected, sniffer queue guarded too)
 - Fixed field-feedback batch: report tool_version wrongly showed v1.0.10 (now reads program version); Authorization_Header cross-line fake credentials (backslash-s narrowed to space/tab); HK/Macau permit bare form matching ARM immediates (uppercase-only); USCC all-hex strings rejected even when checksum passes; duplicate PII entries with/without downweight annotation merged; dex direct-extract mode falls back to baksmali by default due to URL coverage regression
 - Fixed shell gate wrongly blocking --prefer-dump and --unpack success/failure fallback paths (explicit unpack works end to end for the first time); unconfirmed shell suspicion now downgrades to a warning and scanning continues
 - Fixed frida being a hard prerequisite for plain scans (only --unpack needs it); --scope file read failure now denies all sniffing
