@@ -239,6 +239,13 @@ def _run_with_timeout(fn, seconds):
         raise TimeoutError("task exceeded {}s total timeout".format(seconds))
 
 
+# MCP Server(stdio): 将扫描能力暴露为 Agent 工具
+@cli.command(help="Run as an MCP stdio server (tools: scan_app / scan_web).")
+def mcp():
+    from libs.core import mcp_server
+    mcp_server.serve()
+
+
 # 引导式配置(非规则层): 分步向导, 每步可 q 取消, 写回前备份
 @cli.command(help="Guided configuration for non-rule settings (interactive wizard).")
 @click.option("--section", required=False,
