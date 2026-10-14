@@ -1,5 +1,16 @@
 **语言/Language**: [简体中文](update.md) | [English](update_EN.md)
 
+### V1.0.13
+新增:
+- 新增AI语义复核与多模态资产理解：多provider双协议适配(openai_compatible/anthropic，覆盖OpenAI/DeepSeek/GLM/Kimi/Qwen及Ollama/vLLM本地部署)、本地模型默认最高优先、api_key支持${ENV_VAR}引用、故障自动降级；pii/credentials命中按方法体粒度(smali感知)送检，调用链与流向结论回写报告三格式；assets图片直送vision、音频转写、命名关键词+大小数量双预算的资产采集
+- 新增init引导式配置命令：非规则层配置分步向导(每步可q取消、写回前自动备份、变更摘要)；AI provider向导与复核模块统一(本地Ollama自动探测/云厂商模板/拉取模型列表/连通性测试)
+- 新增AI Agent模式(--agent)：安全默认(强制关闭嗅探/拒绝--unpack/英文输出/结果目录隔离)、语义化退出码(0成功/1文件错误/2检测到壳/3超时/4环境缺失)、--redact三级脱敏(默认hash：前8位+SHA256指纹，完整值仅保留于report.json)、--format json-only(stdout纯JSON输出，过程信息走stderr)、--timeout总超时(agent默认300秒)、MD5断点续扫(重试跳过已处理文件)
+- 新增MCP Server(stdio)：scan_app/scan_web工具暴露为标准MCP协议，内部复用--agent全套安全默认，兼容Claude Desktop/Cursor等
+- 新增ai_verify配置节(enabled/provider多实例/granularity送检粒度/资产预算等混合表)
+
+优化:
+- 优化仓库分发：tests单元测试套件改为本地自测件，不再随仓库与发版包分发(README口径同步)
+
 ### V1.0.12
 新增:
 - 新增官方网站(独立仓库 AppInfoScanner-Site：双语文档站/下载中心/广告位，blog.52zhuanke.cn/AppInfoScanner-Site)与赞助入口(FUNDING.yml)、负责任披露政策(SECURITY.md)；README 双语补官网链接并修正嗅探示例旧参数口径

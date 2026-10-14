@@ -2,6 +2,17 @@
 
 **Language**: [简体中文](update.md) | [English](update_EN.md)
 
+### V1.0.13
+Added:
+- Added AI semantic review and multimodal asset understanding: multi-provider dual-protocol adapters (openai_compatible/anthropic covering OpenAI/DeepSeek/GLM/Kimi/Qwen plus local Ollama/vLLM), local models highest priority by default, ${ENV_VAR} api_key references, automatic fallback; pii/credentials hits verified at method granularity (smali-aware) with call-chain and flow conclusions written back into all three report formats; asset collection (images sent to vision, audio transcription, keyword-priority naming plus size/count budgets)
+- Added guided configuration command (init): step-by-step wizard for non-rule settings (cancel anytime, automatic backup before write-back, change summary); AI provider wizard unified with the review module (local Ollama auto-detection / cloud vendor templates / model list fetch / connectivity test)
+- Added AI Agent mode (--agent): safety defaults (sniffing forced off, --unpack rejected, English output, isolated results directory), semantic exit codes (0 ok / 1 file error / 2 shell detected / 3 timeout / 4 missing env), --redact three-level redaction (hash by default: first 8 chars + SHA256 fingerprint, full values kept only in report.json), --format json-only (pure JSON on stdout, process output to stderr), --timeout total timeout (300s default in agent mode), MD5 checkpoint resume (retry skips processed files)
+- Added MCP server (stdio): scan_app/scan_web tools exposed over the standard MCP protocol, reusing the full --agent safety defaults internally, compatible with Claude Desktop/Cursor etc.
+- Added ai_verify config section (enabled / multiple provider instances / granularity / asset budgets as a mixed table)
+
+Optimized:
+- Optimized repo distribution: the unit-test suite is now local-only and no longer ships with the repository or release packages (README wording updated)
+
 ### V1.0.12
 Added:
 - Added official website (separate repo AppInfoScanner-Site: bilingual docs site / download center / ad slots, blog.52zhuanke.cn/AppInfoScanner-Site) plus sponsorship entry (FUNDING.yml) and responsible-disclosure policy (SECURITY.md); README bilingual website links and fixed outdated sniffing example flags
