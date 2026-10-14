@@ -505,6 +505,8 @@ DEFAULTS = {
         "verify_buckets": ["pii", "credentials"],
         "granularity": "method",
         "max_file_tokens": 6000,
+        "asset_max_count": 20,
+        "asset_max_mb": 4,
         "provider": {},
     },
     # USCC(统一社会信用代码)格式校验数据:

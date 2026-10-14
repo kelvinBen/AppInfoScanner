@@ -285,5 +285,84 @@ class TestAiVerdictReport(unittest.TestCase):
         self.assertIn("A->B", txt)
 
 
+class TestAssetReview(unittest.TestCase):
+    # 13-1c: 资产采集(关键词优先+预算) / 图文双协议 / 转写 / 入口编排
+    CFG = {"enabled": True, "asset_max_count": 3, "asset_max_mb": 1,
+           "provider": {"local": {"kind": "openai_compatible",
+                                  "base_url": "http://127.0.0.1:11434/v1",
+                                  "model_text": "t", "model_vision": "v", "model_audio": "a"}}}
+
+    def make_assets(self, tmp):
+        import os
+        os.makedirs(os.path.join(tmp, "assets"), exist_ok=True)
+        open(os.path.join(tmp, "assets", "login_qr.png"), "wb").write(b"\x89PNG fake")
+        open(os.path.join(tmp, "assets", "wallpaper.png"), "wb").write(b"\x89PNG big" + b"x" * 10)
+        open(os.path.join(tmp, "assets", "voice_note.mp3"), "wb").write(b"ID3 fake")
+
+    def test_collect_assets_keyword_priority_and_budget(self):
+        import tempfile, os
+        from libs.core import ai_verify
+        tmp = tempfile.mkdtemp()
+        self.make_assets(tmp)
+        with mock.patch.object(cores.config, "ai_verify", self.CFG):
+            picked = ai_verify.collect_assets(tmp)
+        paths = [os.path.basename(fp) for fp, _ in picked]
+        self.assertIn("login_qr.png", paths)   # 关键词优先
+        self.assertLessEqual(len(paths), 3)    # 数量预算
+
+    def test_chat_image_openai_shape(self):
+        import tempfile, os
+        from libs.core import ai_verify
+        tmp = tempfile.mkdtemp()
+        img = os.path.join(tmp, "qr.png")
+        open(img, "wb").write(b"\x89PNG" + b"y" * 8)
+        p = self.CFG["provider"]["local"]
+        with mock.patch.object(ai_verify.requests, "post",
+                               return_value=fake_resp({"choices": [{"message": {"content": "含token"}}]})) as post:
+            out = ai_verify.chat_image(p, "desc", img)
+        self.assertEqual(out, "含token")
+        body = post.call_args[1]["json"]
+        self.assertEqual(body["model"], "v")
+        parts = body["messages"][0]["content"]
+        self.assertTrue(any(x["type"] == "image_url" and
+                            x["image_url"]["url"].startswith("data:image/png;base64,") for x in parts))
+
+    def test_chat_image_anthropic_shape(self):
+        import tempfile, os
+        from libs.core import ai_verify
+        tmp = tempfile.mkdtemp()
+        img = os.path.join(tmp, "qr.png")
+        open(img, "wb").write(b"\x89PNG" + b"y" * 8)
+        p = {"kind": "anthropic", "base_url": "https://api.anthropic.com",
+             "api_key": "k", "model_vision": "claude-v"}
+        with mock.patch.object(ai_verify.requests, "post",
+                               return_value=fake_resp({"content": [{"type": "text", "text": "ok"}]})) as post:
+            out = ai_verify.chat_image(p, "desc", img)
+        self.assertEqual(out, "ok")
+        blocks = post.call_args[1]["json"]["messages"][0]["content"]
+        img_block = [b for b in blocks if b["type"] == "image"][0]
+        self.assertEqual(img_block["source"]["type"], "base64")
+
+    def test_run_asset_review_orchestration(self):
+        import tempfile, os
+        from libs.core import ai_verify
+        tmp = tempfile.mkdtemp()
+        self.make_assets(tmp)
+        with mock.patch.object(cores.config, "ai_verify", self.CFG), \
+                mock.patch.object(ai_verify, "chat_image", return_value="发现内部token") as ci, \
+                mock.patch.object(ai_verify, "transcribe", return_value="客服语音含手机号") as tr:
+            out = ai_verify.run_asset_review(tmp)
+        kinds = {a["kind"] for a in out}
+        self.assertEqual(kinds, {"image", "audio"})
+        self.assertTrue(any("token" in a["summary"] for a in out))
+        ci.assert_called()
+        tr.assert_called()
+
+    def test_disabled_empty(self):
+        from libs.core import ai_verify
+        with mock.patch.object(cores.config, "ai_verify", {"enabled": False, "provider": {}}):
+            self.assertEqual(ai_verify.run_asset_review("/tmp"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

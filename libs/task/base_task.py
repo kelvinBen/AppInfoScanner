@@ -164,8 +164,10 @@ class BaseTask(object):
                 cores.logp("  " + permission)
 
         # AI 语义复核(默认关闭): pii/credentials 命中送 LLM 结构化判定
+        # + 多模态资产理解(解码产物下的图片/音频)
         from libs.core import ai_verify
         ai_verdicts = ai_verify.run_verify(self.result_dict)
+        ai_assets = ai_verify.run_asset_review(str(cores.output_path))
         if ai_verdicts:
             confirm = sum(1 for v in ai_verdicts if v["verdict"] == "confirm")
             cores.logp(cores.i18n.t(
@@ -186,6 +188,7 @@ class BaseTask(object):
             "shell": list(shell_report),
             "sniffer": sniff_rows,
             "ai_verdict": list(ai_verdicts),
+            "ai_assets": list(ai_assets),
             "details": {fp: sorted(values) for fp, values in self.result_dict.items()},
         }
         for name, writer, path in (("json", report.write_json_report, cores.json_result_path),
