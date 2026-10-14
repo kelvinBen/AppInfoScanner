@@ -11,6 +11,7 @@ Added:
 - Added ai_verify config section (enabled / multiple provider instances / granularity / asset budgets as a mixed table)
 
 Optimized:
+- Optimized output directory for parallel safety: out/ now uses per-run subdirectories (sample+timestamp) so multiple instances sharing one output root no longer destroy each other; dual-criteria auto pruning (keep the latest 10 or within 7 days); agent resume cache writes atomically
 - Optimized repo distribution: the unit-test suite is now local-only and no longer ships with the repository or release packages (README wording updated)
 
 ### V1.0.12
