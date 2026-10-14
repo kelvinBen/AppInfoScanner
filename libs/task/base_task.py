@@ -66,7 +66,8 @@ class BaseTask(object):
         except OSError:
             return None
 
-    def __filter_queue_by_cache__(self):
+    def __filter_queue_by_cache__(self, scan_queue):
+        # 过滤的是任务实际队列(任务侧新建的 Queue), 不是 self.file_queue
         if not self.agent_mode:
             return
         done = {}
@@ -77,15 +78,15 @@ class BaseTask(object):
         except (OSError, ValueError):
             pass
         keep, skipped = [], 0
-        while not self.file_queue.empty():
-            item = self.file_queue.get()
+        while not scan_queue.empty():
+            item = scan_queue.get()
             digest = self.__file_md5__(item)
             if digest and digest in done:
                 skipped += 1
                 continue
             keep.append(item)
         for item in keep:
-            self.file_queue.put(item)
+            scan_queue.put(item)
         self._scanned_md5 = [d for d in (self.__file_md5__(x) for x in keep) if d]
         if skipped:
             cores.logp(cores.i18n.t(
@@ -161,7 +162,7 @@ class BaseTask(object):
             raise cores.ShellDetected("shell detected: " + "; ".join(shell_report[:2]))
 
         # 线程控制中心(agent 模式先按 MD5 缓存过滤, 重试跳过已处理文件)
-        self.__filter_queue_by_cache__()
+        self.__filter_queue_by_cache__(file_queue)
         cores.logp(
             "[*] =========  Searching for strings that match the rules ===============")
         self.__threads_control__(file_queue, comp_list)
