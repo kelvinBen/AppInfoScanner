@@ -225,8 +225,9 @@ DEFAULTS = {
             r'-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----',
         ],
         "Authorization_Header": [
-            r'(?i)basic\s+[A-Za-z0-9_\-:\.=]{16,}',
-            r'(?i)bearer\s+[A-Za-z0-9_\-:\.=]{16,}',
+            # [ \t] 不含换行: \s 会把行尾 basic 与下一行内容拼成假凭据
+            r'(?i)basic[ \t]+[A-Za-z0-9_\-:\.=]{16,}',
+            r'(?i)bearer[ \t]+[A-Za-z0-9_\-:\.=]{16,}',
         ],
         "Password_In_URL": [
             r'://[A-Za-z0-9_\-]+:[A-Za-z0-9_@!#$%^&*\-]{3,}@',
@@ -406,8 +407,9 @@ DEFAULTS = {
             r'(?:地址|住址|收货地址|address)[：:\s]{0,4}([\u4e00-\u9fa5]{2,6}(?:省|市|区|县|镇|乡|村|路|街|道|号|楼|室)[\u4e00-\u9fa50-9A-Za-z\-]{4,40})',
         ],
         "HK_Macau_Permit": [
-            # 往来港澳通行证: 新版卡 C+8位 / 港澳居民来往内地通行证 H·M+8位(裸形态)
-            r'(?<![0-9A-Za-z])[CHMchm]\d{8}(?![0-9A-Za-z])',
+            # 往来港澳通行证: 新版卡 C+8位 / 港澳居民来往内地通行证 H·M+8位;
+            # 裸形态仅大写(真实证件为大写字母), 小写 [chm]+hex 形态是 ARM 立即数(c80000000)
+            r'(?<![0-9A-Za-z])[CHM]\d{8}(?![0-9A-Za-z])',
             # 旧版 9 位纯数字误报面大, 仅关键词锚定(裸形态误报高时退锚定同理)
             r'(?:往来港澳通行证|港澳通行证|通行证号码?|港澳居民来往内地通行证)[：:\s]{0,4}(\d{9}|[CHMchm]\d{8})',
         ],
@@ -491,9 +493,9 @@ DEFAULTS = {
         "com.getui": "个推(Getui)",
         "com.meituan": "美团SDK(Meituan)",
     },
-    # dex 输入解析模式: true=二进制字符串直提(秒级, 无组件路径上下文);
-    # false=全量 baksmali 反编译(组件指纹按 smali 路径匹配, 中间产物大且耗时)
-    "dex_strings_direct": True,
+    # dex 输入解析模式: true=二进制字符串直提(秒级, 但 URL 覆盖存在回归——
+    # 裸字符串行不入报告, 修复排期见开发计划 P-5); false=全量 baksmali 反编译
+    "dex_strings_direct": False,
     # AI 语义复核: 默认关闭; 多 provider 字典表(本地 base_url 指向本机默认最高优先,
     # 数据不出内网), api_key 支持 ${ENV_VAR} 引用避免明文; kind=openai_compatible
     # (OpenAI/DeepSeek/GLM/Kimi/Qwen 兼容模式与 Ollama/vLLM 本地部署)|anthropic;

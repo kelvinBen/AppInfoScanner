@@ -306,6 +306,10 @@ class ParsesThreads(threading.Thread):
         # 中间 6 位(登记管理机关)必须是数字
         if not v[2:8].isdigit():
             return False
+        # 全 hex 字符集的 18 位串是 hash 片段/ARM 立即数(如 ...E71), 非信用代码;
+        # 即使恰好通过校验位也拒绝
+        if all(c in "0123456789abcdefABCDEF" for c in v):
+            return False
         # 校验位
         total = sum(self._USCC_CHARS.index(v[i]) * w
                     for i, w in enumerate(self._USCC_WEIGHTS))
