@@ -180,13 +180,12 @@ class TestDexDirectStrings(unittest.TestCase):
         # 配置开启直提时: __decode_file__ 不再调 baksmali
         # (默认值已回退 False——直提 URL 覆盖回归未修, 见开发计划 P-5)
         import libs.core as cores
-        with mock.patch.object(cores.config, "dex_strings_direct", True):
-            self.assertTrue(getattr(cores.config, "dex_strings_direct", False))
         task = AndroidTask("/tmp/x.apk", "")
         tmp = tempfile.mkdtemp()
         dex = self.make_dex(tmp, b"https://x.cn/a\x00" * 10)
-        # 输出目录重定向到临时目录, 防止产物落进仓库根
-        with mock.patch.object(cores, "output_path", tmp):
+        # 开启直提 + 输出目录重定向临时目录, 防止产物落进仓库根
+        with mock.patch.object(cores.config, "dex_strings_direct", True), \
+                mock.patch.object(cores, "output_path", tmp):
             task.__decode_dex__ = lambda *a, **k: self.fail("baksmali 不应被调用")
             task.__decode_file__(dex)
         self.assertFalse(task.file_queue.empty())
