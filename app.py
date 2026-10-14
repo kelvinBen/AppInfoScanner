@@ -48,11 +48,15 @@ def cli():
               help="Path to an authorized-domain list file; only listed domains are sniffed.")
 @click.option("--agent", is_flag=True, default=False,
               help="AI Agent mode: sniffing forced off, --unpack banned, English output, isolated results.")
+@click.option("--redact", required=False,
+              type=click.Choice(["none", "hash", "full"]), default=None,
+              help="Output redaction level (default: hash in agent mode, none otherwise).")
 def android(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output,
-            package: str, unpack: bool, prefer_dump: str, scope: str, agent: bool) -> None:
+            package: str, unpack: bool, prefer_dump: str, scope: str, agent: bool, redact: str = None) -> None:
     if agent:
         os.environ["APPINFO_LANG"] = "en"
         output = output or "agent-out"
+    cores.redact_mode = redact or ("hash" if agent else "none")
     try:
         bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()
@@ -87,10 +91,14 @@ def android(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool
 @click.option("-o", '--output', required=False, type=str, default=None, help="Specify the result set output directory.")
 @click.option("--agent", is_flag=True, default=False,
               help="AI Agent mode: sniffing forced off, --unpack banned, English output, isolated results.")
-def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str, scope: str = None, agent: bool = False) -> None:
+@click.option("--redact", required=False,
+              type=click.Choice(["none", "hash", "full"]), default=None,
+              help="Output redaction level (default: hash in agent mode, none otherwise).")
+def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str, scope: str = None, agent: bool = False, redact: str = None) -> None:
     if agent:
         os.environ["APPINFO_LANG"] = "en"
         output = output or "agent-out"
+    cores.redact_mode = redact or ("hash" if agent else "none")
     try:
         bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()
@@ -124,10 +132,14 @@ def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, th
 @click.option("-o", '--output', required=False, type=str, default=None, help="Specify the result set output directory.")
 @click.option("--agent", is_flag=True, default=False,
               help="AI Agent mode: sniffing forced off, --unpack banned, English output, isolated results.")
-def web(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str, scope: str = None, agent: bool = False) -> None:
+@click.option("--redact", required=False,
+              type=click.Choice(["none", "hash", "full"]), default=None,
+              help="Output redaction level (default: hash in agent mode, none otherwise).")
+def web(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str, scope: str = None, agent: bool = False, redact: str = None) -> None:
     if agent:
         os.environ["APPINFO_LANG"] = "en"
         output = output or "agent-out"
+    cores.redact_mode = redact or ("hash" if agent else "none")
     try:
         bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()

@@ -131,6 +131,22 @@ def logp(msg):
     logf(msg)
 
 
+# 输出脱敏模式: none(原样)/hash(前8位+sha256指纹8位)/full(完全遮蔽);
+# hash 与 full 下完整值仅保留在 report.json(full 连 json 也遮蔽)
+redact_mode = "none"
+
+
+def redact(value):
+    # 值脱敏: hash=前8位+指纹, full=遮蔽; none 原样
+    if redact_mode == "none" or not value:
+        return value
+    if redact_mode == "full":
+        return "<redacted>"
+    import hashlib
+    fp = hashlib.sha256(str(value).encode("utf-8", "ignore")).hexdigest()[:8]
+    return "{}...#{}".format(str(value)[:8], fp)
+
+
 # 任务级异常与语义化退出码(0 成功/1 文件错误/2 检测到壳/3 超时/4 环境缺失)
 class TaskError(Exception):
     exit_code = 1
@@ -180,9 +196,12 @@ def progress(msg):
                 _sys.stdout.flush()
 
 
-# 进度行上方插入完整输出
+# 进度行上方插入完整输出(脱敏模式下命中值打码)
 def notice(msg):
     global _progress_last
+    if redact_mode != "none" and "]-->:" in msg:
+        head, _, value = msg.partition("]-->:")
+        msg = head + "]-->: " + redact(value.strip())
     logf(msg)
     with _progress_lock:
         pad = " " * max(0, len(_progress_last) - len(msg))

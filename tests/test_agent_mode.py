@@ -53,5 +53,71 @@ class TestAgentMode(unittest.TestCase):
         self.assertIn("--agent", result.output)
 
 
+class TestRedact(unittest.TestCase):
+    # 13-3 第二批: 三级脱敏 none/hash/full
+    def test_redact_levels(self):
+        import libs.core as cores
+        old = cores.redact_mode
+        try:
+            cores.redact_mode = "none"
+            self.assertEqual(cores.redact("AKIAIOSFODNN7EXAMPLE"), "AKIAIOSFODNN7EXAMPLE")
+            cores.redact_mode = "hash"
+            r = cores.redact("AKIAIOSFODNN7EXAMPLE")
+            self.assertTrue(r.startswith("AKIAIOSF") and "#" in r)
+            self.assertEqual(r, "AKIAIOSF...#" + __import__("hashlib").sha256(
+                b"AKIAIOSFODNN7EXAMPLE").hexdigest()[:8])
+            cores.redact_mode = "full"
+            self.assertEqual(cores.redact("AKIAIOSFODNN7EXAMPLE"), "<redacted>")
+        finally:
+            cores.redact_mode = old
+
+    def test_txt_redacted_in_hash_mode(self):
+        import tempfile, os, contextlib, io as _io
+        import libs.core as cores
+        from libs.core import report
+        old = cores.redact_mode
+        try:
+            cores.redact_mode = "hash"
+            data = report.classify_results(
+                {"/a.js": ["[Authorization_Header]-->: Bearer secret123"]}, set(), set())
+            meta = report.build_report_meta("t.apk", "Android")
+            extra = {"components": [], "permissions": [], "shell": [], "sniffer": [],
+                     "details": {"/a.js": ["[Authorization_Header]-->: Bearer secret123"]}}
+            tp = os.path.join(tempfile.mkdtemp(), "r.txt")
+            report.write_txt_report(tp, meta, data, extra)
+            txt = open(tp).read()
+            self.assertNotIn("secret123", txt)
+            self.assertIn("Bearer s", txt)   # 前8位保留
+        finally:
+            cores.redact_mode = old
+
+    def test_json_full_mode_redacted(self):
+        import tempfile, os, json
+        import libs.core as cores
+        from libs.core import report
+        old = cores.redact_mode
+        try:
+            cores.redact_mode = "full"
+            data = report.classify_results(
+                {"/a.js": ["[Authorization_Header]-->: Bearer secret123"]}, set(), set())
+            meta = report.build_report_meta("t.apk", "Android")
+            extra = {"components": [], "permissions": [], "shell": [], "sniffer": [],
+                     "details": {"/a.js": ["[Authorization_Header]-->: Bearer secret123"]}}
+            jp = os.path.join(tempfile.mkdtemp(), "r.json")
+            report.write_json_report(jp, meta, data, extra)
+            payload = json.load(open(jp))
+            blob = json.dumps(payload, ensure_ascii=False)
+            self.assertNotIn("secret123", blob)
+        finally:
+            cores.redact_mode = old
+
+    def test_cli_redact_flag_registered(self):
+        from click.testing import CliRunner
+        import app
+        result = CliRunner().invoke(app.cli, ["android", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--redact", result.output)
+
+
 if __name__ == "__main__":
     unittest.main()
