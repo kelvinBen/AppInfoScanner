@@ -97,6 +97,9 @@ class ParsesThreads(threading.Thread):
                 file_path = self.file_queue.get(timeout=5)
             except Empty:
                 break
+            # 逐文件归集重置: 不重置会让每个文件背上该线程全部累计命中,
+            # 明细段变成 文件数×命中数 的笛卡尔积(实测千万行级, 报告体量失控)
+            self.result_list = []
             if self.types == "iOS":
                 self.__get_string_by_iOS__(file_path)
             else:

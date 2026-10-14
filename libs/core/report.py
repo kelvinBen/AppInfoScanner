@@ -25,6 +25,28 @@ SNIFFER_HEADER = ("Number", "IP/URL", "Domain", "Status", "IP",
 _URL_PATTERN = re.compile(
     r'(?i)^(?:jdbc(?::[a-z0-9]+)*:(?:@)?//|(?:https?|ftps?|sftp|wss?|ssl|tcp|udp|ssh|telnet|smtp|imap|pop3?|ldaps?|rtmps?|rtsps?|mysql|mariadb|mssql|mongodb|redis|memcached|amqp|mqtt|file|gopher)://)')
 _IP4_PATTERN = re.compile(r'^(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$')
+# 每值文件清单封顶: json 的 files 数组与内部路径列表上限, 真实计数在 _totals
+MAX_FILES_PER_VALUE = 20
+
+# 域名形态校验: 点分标签(字母数字连字符, 首尾非连字符) + 纯字母 TLD;
+# 拦截模板碎片("or wss"/"%1$s"/自然语句)混入域名清单, IP 字面量另行放行
+_HOST_VALID_RE = re.compile(
+    r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"          # 单标签(内网主机名)
+    r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")  # 或点分标签
+
+
+def host_valid(host):
+    # 字符集合法的单标签/点分域名或 IPv4 字面量才入清单;
+    # 模板碎片(or wss/%1$s/自然语句)含空格与特殊字符, 全部拦截
+    if not _HOST_VALID_RE.match(host):
+        return bool(_IP4_PATTERN.match(host))
+    # 点分形态要求末标签为纯字母 TLD(拦 a.b.c123 类数字尾缀), 单标签直接放行
+    if "." in host:
+        tld = host.rsplit(".", 1)[-1]
+        return tld.isalpha() and len(tld) >= 2
+    return True
+
+
 # PII 命中值的降权标注后缀(入桶前剥除, 同值带标注/不带标注归并)
 _ANNOTATION_RE = re.compile(r"\s*\(疑似测试向量[^)]*\)\s*$")
 _SENSITIVE_PATTERN = re.compile(r'^\[([A-Za-z0-9_]+)\]-->:?\s*(.+)$', re.S)
@@ -118,13 +140,21 @@ def classify_results(result_dict, ak_names, pii_names):
     # 文件清单去重走 set 索引: 高频值(如 file:///)可命中近全量 smali 文件,
     # list 成员判断在 baksmali 规模下是 O(N²) 字符串比较, 报告阶段直接卡死
     _file_sets = {}
+    # 每值文件清单封顶(路径全量落盘曾把 report.json 撑到 4.1GB);
+    # 真实计数存 data["_totals"], 三格式计数口径不变
+    _file_totals = {}
+    totals = data.setdefault("_totals", {})
 
-    def put(bucket, key, file_path):
+    def put(bucket, bucket_name, key, file_path):
         seen = _file_sets.setdefault((id(bucket), key), set())
         if file_path in seen:
             return
         seen.add(file_path)
-        bucket.setdefault(key, []).append(file_path)
+        _file_totals[(id(bucket), key)] = _file_totals.get((id(bucket), key), 0) + 1
+        totals.setdefault(bucket_name, {})[key] = _file_totals[(id(bucket), key)]
+        lst = bucket.setdefault(key, [])
+        if len(lst) < MAX_FILES_PER_VALUE:
+            lst.append(file_path)
 
     for file_path, results in result_dict.items():
         for value in results:
@@ -137,31 +167,31 @@ def classify_results(result_dict, ak_names, pii_names):
                 # 剥掉降权标注后再入桶: 同值"带标注/不带标注"两条目归并为一个键
                 raw = _ANNOTATION_RE.sub("", raw).strip()
                 if name in ak_names:
-                    put(data["credentials"], "%s|%s" % (name, raw), file_path)
+                    put(data["credentials"], "credentials", "%s|%s" % (name, raw), file_path)
                 elif name in pii_names:
-                    put(data["pii"], "%s|%s" % (name, raw), file_path)
+                    put(data["pii"], "pii", "%s|%s" % (name, raw), file_path)
                 else:
-                    put(data["other"], value, file_path)
+                    put(data["other"], "other", value, file_path)
                 continue
             host = extract_host(value) if _URL_PATTERN.match(value) or _IP4_PATTERN.match(value) else ""
             # 回环(127.x / localhost)是本地服务通讯情报: 独立归类保留端口，不进常规资产桶
             if host and (host == "localhost" or host.startswith("127.")):
-                put(data["loopback"], value, file_path)
+                put(data["loopback"], "loopback", value, file_path)
                 continue
             if _URL_PATTERN.match(value):
-                put(data["urls"], value, file_path)
-                if host:
-                    put(data["hosts"], host, file_path)
+                put(data["urls"], "urls", value, file_path)
+                if host and host_valid(host):
+                    put(data["hosts"], "hosts", host, file_path)
                 continue
             if _IP4_PATTERN.match(value):
                 # 值可能带端口(独立IP规则捕获 ip:port)，按 host 部分判定内外网
                 bucket = "ip_private" if is_private_ip4(host) else "ip_public"
-                put(data[bucket], value, file_path)
+                put(data[bucket], bucket, value, file_path)
                 continue
             if ":" in value and _IPV6_HINT.match(value):
-                put(data["ip_v6"], value, file_path)
+                put(data["ip_v6"], "ip_v6", value, file_path)
                 continue
-            put(data["other"], value, file_path)
+            put(data["other"], "other", value, file_path)
     for bucket in ("urls", "hosts", "ip_private", "ip_public", "ip_v6", "loopback", "other"):
         data[bucket] = dict(sorted(data[bucket].items()))
     return data
@@ -229,11 +259,17 @@ def _split_sensitive(key):
 # 结构化 payload 组装(json-only 模式复用于 stdout 输出)
 def build_report_payload(meta, data, extra):
     payload = {"meta": meta}
-    for section in ("urls", "hosts", "ip_private", "ip_public", "ip_v6", "loopback"):
+    totals = data.get("_totals", {})
+    for section in ("urls", "hosts", "ip_private", "ip_public", "ip_v6"):
+        st = totals.get(section, {})
         payload[section] = [
-            {"value": key, "files": files} for key, files in data[section].items()]
+            {"value": key, "files": files,
+             "files_total": st.get(key, len(files))}
+            for key, files in data[section].items()]
+    slt = totals.get("loopback", {})
     payload["loopback"] = [
-        {"value": key, "port": extract_port(key), "files": files}
+        {"value": key, "port": extract_port(key), "files": files,
+         "files_total": slt.get(key, len(files))}
         for key, files in data["loopback"].items()]
     payload["credentials"] = _group_by_rule(data["credentials"])
     payload["pii"] = _group_by_rule(data["pii"])
@@ -312,17 +348,18 @@ def write_txt_report(path, meta, data, extra):
                 lines.append("    流向: %s" % ", ".join(v["flows"]))
         lines.append("")
 
-    def dump_list(title, bucket):
+    def dump_list(title, bucket, bucket_name):
         lines.append("[%s] (%d)" % (title, len(bucket)))
+        _t = data.get("_totals", {}).get(bucket_name, {})
         for key in bucket:
-            lines.append("  %s    <- %d 个文件" % (key, len(bucket[key])))
+            lines.append("  %s    <- %d 个文件" % (key, _t.get(key, len(bucket[key]))))
         lines.append("")
 
-    dump_list("域名清单", data["hosts"])
-    dump_list("内网IP", data["ip_private"])
-    dump_list("公网IP", data["ip_public"])
-    dump_list("IPv6", data["ip_v6"])
-    dump_list("本地回环服务(loopback)", data["loopback"])
+    dump_list("域名清单", data["hosts"], "hosts")
+    dump_list("内网IP", data["ip_private"], "ip_private")
+    dump_list("公网IP", data["ip_public"], "ip_public")
+    dump_list("IPv6", data["ip_v6"], "ip_v6")
+    dump_list("本地回环服务(loopback)", data["loopback"], "loopback")
     loop_ports = sorted({p for p in (extract_port(k) for k in data["loopback"]) if p})
     if loop_ports:
         lines.append("  # 抓包建议(金融/股票类APP常用本地回环通讯): 宿主机起代理监听对应端口后执行:")
@@ -388,20 +425,23 @@ def write_xlsx_report(path, meta, data, extra):
         for row in rows:
             ws.append(row)
 
+    _tx = data.get("_totals", {})
+    _th, _tp, _tu, _tv = (_tx.get("hosts", {}), _tx.get("ip_private", {}),
+                          _tx.get("ip_public", {}), _tx.get("ip_v6", {}))
     sheet("Hosts", ("Host", "Files"),
-          [(k, len(v)) for k, v in data["hosts"].items()])
+          [(k, _th.get(k, len(v))) for k, v in data["hosts"].items()])
     sheet("IPs", ("IP", "Category", "Files"),
-          [(k, "private", len(v)) for k, v in data["ip_private"].items()] +
-          [(k, "public", len(v)) for k, v in data["ip_public"].items()] +
-          [(k, "ipv6", len(v)) for k, v in data["ip_v6"].items()])
+          [(k, "private", _tp.get(k, len(v))) for k, v in data["ip_private"].items()] +
+          [(k, "public", _tu.get(k, len(v))) for k, v in data["ip_public"].items()] +
+          [(k, "ipv6", _tv.get(k, len(v))) for k, v in data["ip_v6"].items()])
     sheet("Loopback", ("Loopback Service", "Port", "adb reverse", "Files"),
           [(k, extract_port(k) or "-",
             "adb reverse tcp:{0} tcp:{0}".format(extract_port(k)) if extract_port(k) else "-",
             len(v)) for k, v in data["loopback"].items()])
     sheet("URLs", ("URL", "Files"),
-          [(k, len(v)) for k, v in data["urls"].items()])
-    _sensitive_sheet(workbook, "Credentials", data["credentials"])
-    _sensitive_sheet(workbook, "PII", data["pii"])
+          [(k, _tx.get("urls", {}).get(k, len(v))) for k, v in data["urls"].items()])
+    _sensitive_sheet(workbook, "Credentials", data["credentials"], data.get("_totals", {}).get("credentials"))
+    _sensitive_sheet(workbook, "PII", data["pii"], data.get("_totals", {}).get("pii"))
     # 组件明细: 宿主归属+版本+结论 三列结构(无明细时回退行式条目)
     comp_detail = extra.get("components_detail") or []
     if comp_detail:
@@ -439,7 +479,7 @@ def write_xlsx_report(path, meta, data, extra):
     workbook.save(path)
 
 
-def _sensitive_sheet(workbook, name, flat):
+def _sensitive_sheet(workbook, name, flat, totals=None):
     import libs.core as _cores
     _rm = getattr(_cores, "redact_mode", "none")
     ws = workbook.create_sheet(name)
@@ -448,4 +488,4 @@ def _sensitive_sheet(workbook, name, flat):
         rule, value = _split_sensitive(key)
         if _rm != "none":
             value = _cores.redact(value)
-        ws.append((rule, value, len(files)))
+        ws.append((rule, value, (totals or {}).get(key, len(files))))

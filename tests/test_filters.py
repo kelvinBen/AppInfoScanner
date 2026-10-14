@@ -375,6 +375,92 @@ class TestFieldFeedbackBatch2(unittest.TestCase):
         self.assertEqual(len(data["pii"][keys[0]]), 2)   # 两个文件都归到该键
 
 
+class TestReportSizeCap(unittest.TestCase):
+    # 实战反馈第三批: 每值文件清单封顶 20, 真实计数入 _totals/files_total
+    def test_files_capped_with_total(self):
+        import json, os, tempfile
+        from libs.core import report
+        files = ["/out/a/Class%04d.smali" % i for i in range(25)]
+        rd = {fp: ["file:///android_asset/www/index.html"] for fp in files}
+        data = report.classify_results(rd, set(), set())
+        urls = data["urls"]
+        key = list(urls.keys())[0]
+        self.assertLessEqual(len(urls[key]), 20)                      # 清单封顶
+        self.assertEqual(data["_totals"]["urls"][key], 25)           # 真实计数
+        meta = report.build_report_meta("t", "Android")
+        payload = report.build_report_payload(meta, data, {"components": []})
+        entry = payload["urls"][0]
+        self.assertEqual(entry["files_total"], 25)
+        self.assertLessEqual(len(entry["files"]), 20)
+
+    def test_txt_count_uses_totals(self):
+        import os, tempfile
+        from libs.core import report
+        files = ["/out/a/C%04d.smali" % i for i in range(30)]
+        rd = {fp: ["https://cap.example.cn/x"] for fp in files}
+        data = report.classify_results(rd, set(), set())
+        meta = report.build_report_meta("t", "Android")
+        tp = os.path.join(tempfile.mkdtemp(), "r.txt")
+        report.write_txt_report(tp, meta, data,
+                                {"components": [], "permissions": [], "shell": [],
+                                 "sniffer": [], "details": {}})
+        txt = open(tp).read()
+        self.assertIn("<- 30 个文件", txt)
+        self.assertNotIn("<- 20 个文件", txt)
+
+
+class TestHostShapeValidation(unittest.TestCase):
+    # 实战反馈第三批: 模板碎片不入域名清单
+    def test_host_valid(self):
+        from libs.core.report import host_valid
+        self.assertTrue(host_valid("api.example.cn"))
+        self.assertTrue(host_valid("1.2.3.4"))          # IP 字面量放行
+        self.assertTrue(host_valid("intranet-db"))      # 单标签内网主机名
+        self.assertFalse(host_valid("or wss"))
+        self.assertFalse(host_valid("%1$s"))
+        self.assertFalse(host_valid("%s"))
+        self.assertFalse(host_valid("will be added arbitrarily."))
+        self.assertFalse(host_valid("a..b"))
+
+    def test_classify_rejects_garbage_hosts(self):
+        from libs.core import report
+        rd = {"/a.js": ["https://%1$s.example.cn/xx", "https://ok.example.cn/yy"]}
+        data = report.classify_results(rd, set(), set())
+        hosts = set(data["hosts"].keys())
+        self.assertIn("ok.example.cn", hosts)
+        self.assertNotIn("%1$s.example.cn", hosts)
+        # URL 本身仍入 urls 桶
+        self.assertTrue(any("%1$s" in k for k in data["urls"]))
+
+
+class TestPerFileAttribution(unittest.TestCase):
+    # 实战反馈第三批: 逐文件归集重置——明细段不再笛卡尔积
+    def test_two_files_isolated_hits(self):
+        import os, tempfile
+        from queue import Queue
+        from threading import Lock
+        from libs.core.parses import ParsesThreads
+        tmp = tempfile.mkdtemp()
+        fa = os.path.join(tmp, "a.js")
+        fb = os.path.join(tmp, "b.js")
+        open(fa, "w").write("tel: 13912345678")
+        open(fb, "w").write('var u = "https://perfile.example.cn/x";')   # 引号内 URL 才入提取(P-5 裸行回归另行修)
+        q = Queue()
+        q.put(fa); q.put(fb)
+        rd = {}
+        pt = ParsesThreads(1, "t", q, rd, "Android")
+        pt.threadLock = Lock()
+        import contextlib, io as _io
+        with contextlib.redirect_stdout(_io.StringIO()):
+            pt.__regular_parse__()
+        hits_a = list(rd.get(fa, set()))
+        hits_b = list(rd.get(fb, set()))
+        self.assertTrue(any("Phone_CN" in h for h in hits_a))
+        self.assertFalse(any("example.cn" in h for h in hits_a))   # 不背 b 的命中
+        self.assertTrue(any("example.cn" in h for h in hits_b))
+        self.assertFalse(any("Phone_CN" in h for h in hits_b))
+
+
 class TestScopeFileLoading(unittest.TestCase):
     def make_task(self, scope_arg):
         return BaseTask("Android", "/tmp/x.apk", scope=scope_arg)

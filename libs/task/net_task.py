@@ -7,7 +7,7 @@
 from queue import Queue
 import libs.core as cores
 from libs.core.net import NetThreads
-from libs.core.report import extract_host, sniff_allowed
+from libs.core.report import extract_host, sniff_allowed, host_valid
 
 
 class NetTask(object):
@@ -80,7 +80,9 @@ class NetTask(object):
                             sniffable = False
                             self.skipped_sniff += 1
                             cores.logf("[SNIFF-SKIP] out of scope: " + result)
-                    if sniffable and not(cores.resource_flag and url_suffix in sniffer_filter_suffix):
+                    # 域名形态校验: 模板碎片(or wss/%1$s)不发嗅探请求
+                    if sniffable and host_valid(domain) and not(
+                            cores.resource_flag and url_suffix in sniffer_filter_suffix):
                         self.domain_queue.put(
                             {"domain": domain, "url_ip": result})
 
