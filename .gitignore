@@ -127,3 +127,5 @@ demo/
 AGENTS.md
 # 本地自测套件(不随仓库分发, 13-4)
 tests/
+# agent 模式默认输出目录
+agent-out/
