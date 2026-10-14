@@ -104,7 +104,7 @@ AppInfoScanner
         |-- apktool.jar / baksmali.jar Decompilation tools
         |-- strings.exe / strings64.exe String extraction on Windows
         |-- unpacker Windows unpacking tools (adb/aapt/frida-server)
-    |-- tests Unit tests (python3 -m unittest discover -s tests)
+    (unit tests are a local-only suite, not distributed with the repo)
     |-- app.py Main program
     |-- requirements.txt Core dependencies (explicit versions)
     |-- requirements-unpack.txt Unpacking dependencies (frida trio, only for --unpack)

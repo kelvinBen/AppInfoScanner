@@ -98,7 +98,7 @@ AppInfoScanner
         |-- apktool.jar / baksmali.jar 反编译工具
         |-- strings.exe / strings64.exe Windows 下提取字符串
         |-- unpacker Windows 脱壳工具(adb/aapt/frida-server)
-    |-- tests 单元测试(python3 -m unittest discover -s tests)
+    (单元测试为本地自测套件, 不随仓库分发)
     |-- app.py 主运行程序
     |-- requirements.txt 核心依赖清单(显式版本)
     |-- requirements-unpack.txt 脱壳依赖(frida 三件套, 仅 --unpack 需要)
