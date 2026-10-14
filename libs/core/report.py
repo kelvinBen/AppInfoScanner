@@ -230,6 +230,18 @@ def write_txt_report(path, meta, data, extra):
     lines.extend("  " + p for p in perms) if perms else lines.append("  无")
     lines.append("")
 
+    verdicts = extra.get("ai_verdict") or []
+    if verdicts:
+        lines.append("[AI 复核与调用链] (%d)" % len(verdicts))
+        for v in verdicts:
+            lines.append("  %s -> %s [%s] %s" % (
+                v.get("value", ""), v.get("verdict", ""), v.get("type", ""), v.get("basis", "")))
+            if v.get("call_chain"):
+                lines.append("    链: %s" % v["call_chain"])
+            if v.get("flows"):
+                lines.append("    流向: %s" % ", ".join(v["flows"]))
+        lines.append("")
+
     def dump_list(title, bucket):
         lines.append("[%s] (%d)" % (title, len(bucket)))
         for key in bucket:
@@ -324,6 +336,12 @@ def write_xlsx_report(path, meta, data, extra):
     sheet("Shell", ("Conclusion",), [(s,) for s in extra.get("shell") or []])
     if extra.get("sniffer"):
         sheet("Sniffer", SNIFFER_HEADER, [tuple(r) for r in extra["sniffer"]])
+    verdicts = extra.get("ai_verdict") or []
+    if verdicts:
+        sheet("AI_Verdict", ("Value", "Verdict", "Type", "Basis", "Call chain", "Flows"),
+              [(v.get("value", ""), v.get("verdict", ""), v.get("type", ""),
+                v.get("basis", ""), v.get("call_chain", ""), ", ".join(v.get("flows", [])))
+               for v in verdicts])
     details = extra.get("details") or {}
     sheet("Details", ("File", "Result"),
           [(fp, v) for fp, values in sorted(details.items()) for v in sorted(values)])
