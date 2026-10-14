@@ -157,12 +157,13 @@ def classify_results(result_dict, ak_names, pii_names):
     return data
 
 
-def build_report_meta(sample, task_type, tool_version="v1.0.10"):
+def build_report_meta(sample, task_type, tool_version="v1.0.10", agent=False):
     return {
         "sample": sample,
         "task_type": task_type,
         "tool_version": tool_version,
         "create_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "agent_mode": bool(agent),
     }
 
 
