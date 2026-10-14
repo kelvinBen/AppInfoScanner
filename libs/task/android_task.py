@@ -42,16 +42,16 @@ class AndroidTask(object):
         cores.logf("[CMD] java -version")
         if shutil.which("java") is None:
             if not provision.ensure_java():
-                raise Exception(cores.i18n.t("Please install the Java environment!"))
+                raise cores.EnvMissing(cores.i18n.t("Please install the Java environment!"))
         if subprocess.call(["java", "-version"], stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL) != 0:
-            raise Exception(cores.i18n.t("Please install the Java environment!"))
+            raise cores.EnvMissing(cores.i18n.t("Please install the Java environment!"))
         input_file_path = self.path
         if os.path.isdir(input_file_path):
             self.__decode_dir__(input_file_path)
         else:
             if self.__decode_file__(input_file_path) == "error":
-                raise Exception(cores.i18n.t(
+                raise cores.TaskError(cores.i18n.t(
                     "Retrieval of this file type is not supported. Select APK file or DEX file."))
 
         # 脱壳决策: --prefer-dump 直接扫描已有dump; --unpack 才走脱壳流程;
@@ -376,7 +376,7 @@ class AndroidTask(object):
         else:
             cores.logp(
                 "[-] Decompilation failed, please submit error information at https://github.com/kelvinBen/AppInfoScanner/issues")
-            raise Exception("{}: {}".format(file_path, cores.i18n.t("Decompilation failed")))
+            raise cores.TaskError("{}: {}".format(file_path, cores.i18n.t("Decompilation failed")))
 
     # 修复独立dex文件的头部(魔数/大小/校验和), 脱壳产物常见损坏
     def __repair_dex_file__(self, file_path):

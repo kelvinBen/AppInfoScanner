@@ -131,6 +131,23 @@ def logp(msg):
     logf(msg)
 
 
+# 任务级异常与语义化退出码(0 成功/1 文件错误/2 检测到壳/3 超时/4 环境缺失)
+class TaskError(Exception):
+    exit_code = 1
+
+
+class ShellDetected(TaskError):
+    exit_code = 2
+
+
+class TaskTimeout(TaskError):
+    exit_code = 3
+
+
+class EnvMissing(TaskError):
+    exit_code = 4
+
+
 # 异常堆栈写入日志
 def logexc(tag):
     if logger:

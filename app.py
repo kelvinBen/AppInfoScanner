@@ -5,6 +5,8 @@
 # Gitee: https://gitee.com/kelvin_ben/AppInfoScanner
 
 import os
+import sys
+
 import click
 
 import libs.core as cores
@@ -44,14 +46,23 @@ def cli():
               help="Enable network sniffing (default: disabled for safety).")
 @click.option("--scope", required=False, type=str, default=None,
               help="Path to an authorized-domain list file; only listed domains are sniffed.")
+@click.option("--agent", is_flag=True, default=False,
+              help="AI Agent mode: sniffing forced off, --unpack banned, English output, isolated results.")
 def android(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output,
-            package: str, unpack: bool, prefer_dump: str, scope: str) -> None:
+            package: str, unpack: bool, prefer_dump: str, scope: str, agent: bool) -> None:
+    if agent:
+        os.environ["APPINFO_LANG"] = "en"
+        output = output or "agent-out"
     try:
         bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()
 
         BaseTask("Android", inputs, rules, sniffer, threads, package,
-                 unpack=unpack, prefer_dump=prefer_dump, scope=scope).start()
+                 unpack=unpack, prefer_dump=prefer_dump, scope=scope, agent=agent).start()
+    except cores.TaskError as e:
+        cores.logexc("[!] Task aborted")
+        cores.logp(cores.i18n.t("[-] Task failed: {}", e))
+        sys.exit(getattr(e, "exit_code", 1))
     except Exception as e:
         cores.logexc("[!] Task aborted")
         cores.logp(cores.i18n.t("[-] Task failed: {}", e))
@@ -74,12 +85,21 @@ def android(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool
 @click.option("-t", '--threads', required=False, type=int, default=10,
               help="Set the number of concurrency. The larger the concurrency, the faster the speed. The default value is 10.")
 @click.option("-o", '--output', required=False, type=str, default=None, help="Specify the result set output directory.")
-def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str, scope: str = None) -> None:
+@click.option("--agent", is_flag=True, default=False,
+              help="AI Agent mode: sniffing forced off, --unpack banned, English output, isolated results.")
+def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str, scope: str = None, agent: bool = False) -> None:
+    if agent:
+        os.environ["APPINFO_LANG"] = "en"
+        output = output or "agent-out"
     try:
         bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()
 
-        BaseTask("iOS", inputs, rules, sniffer, threads, scope=scope).start()
+        BaseTask("iOS", inputs, rules, sniffer, threads, scope=scope, agent=agent).start()
+    except cores.TaskError as e:
+        cores.logexc("[!] Task aborted")
+        cores.logp(cores.i18n.t("[-] Task failed: {}", e))
+        sys.exit(getattr(e, "exit_code", 1))
     except Exception as e:
         cores.logexc("[!] Task aborted")
         cores.logp(cores.i18n.t("[-] Task failed: {}", e))
@@ -102,12 +122,21 @@ def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, th
 @click.option("-t", '--threads', required=False, type=int, default=10,
               help="Set the number of concurrency. The larger the concurrency, the faster the speed. The default value is 10.")
 @click.option("-o", '--output', required=False, type=str, default=None, help="Specify the result set output directory.")
-def web(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str, scope: str = None) -> None:
+@click.option("--agent", is_flag=True, default=False,
+              help="AI Agent mode: sniffing forced off, --unpack banned, English output, isolated results.")
+def web(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, threads: int, output: str, scope: str = None, agent: bool = False) -> None:
+    if agent:
+        os.environ["APPINFO_LANG"] = "en"
+        output = output or "agent-out"
     try:
         bootstrapper = Bootstrapper(__file__, output, all, no_resource, inputs)
         bootstrapper.init()
 
-        BaseTask("Web", inputs, rules, sniffer, threads, scope=scope).start()
+        BaseTask("Web", inputs, rules, sniffer, threads, scope=scope, agent=agent).start()
+    except cores.TaskError as e:
+        cores.logexc("[!] Task aborted")
+        cores.logp(cores.i18n.t("[-] Task failed: {}", e))
+        sys.exit(getattr(e, "exit_code", 1))
     except Exception as e:
         cores.logexc("[!] Task aborted")
         cores.logp(cores.i18n.t("[-] Task failed: {}", e))

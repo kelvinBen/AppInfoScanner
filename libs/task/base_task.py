@@ -20,7 +20,7 @@ class BaseTask(object):
     # 统一初始化入口
 
     def __init__(self, types="Android", inputs="", rules="", sniffer=False, threads=10, package="",
-                 unpack=False, prefer_dump=None, scope=None):
+                 unpack=False, prefer_dump=None, scope=None, agent=False):
         # 统一初始化入口
         # 实例级可变状态(不用类属性: 同进程多次任务会累积泄漏)
         self.thread_list = []
@@ -31,6 +31,13 @@ class BaseTask(object):
         self.path = inputs
         if rules:
             cores.config.filter_strs.append(r'.*'+str(rules)+'.*')
+        # Agent 模式安全默认: 强制关嗅探(越权交互)、禁止 --unpack(不动设备)、
+        # 英文输出、结果目录隔离(agent- 前缀)
+        self.agent_mode = bool(agent)
+        if self.agent_mode:
+            sniffer = False
+            if unpack:
+                raise cores.TaskError("--unpack is not allowed in agent mode")
         self.sniffer = sniffer  # --sniffer 显式开启, 默认关闭
         self.threads = threads
         self.package = package
@@ -86,7 +93,7 @@ class BaseTask(object):
             cores.logp('[-] \033[3;31m Error: This application has shell, the retrieval results may not be accurate, Please remove the shell and try again!')
             for line in shell_report:
                 cores.logp("  " + line)
-            return
+            raise cores.ShellDetected("shell detected: " + "; ".join(shell_report[:2]))
 
         # 线程控制中心
         cores.logp(
@@ -180,7 +187,7 @@ class BaseTask(object):
             set(cores.config.filter_ak_map),
             set(cores.config.filter_pii_map))
         meta = report.build_report_meta(
-            os.path.basename(str(self.path)) or "task", self.types)
+            os.path.basename(str(self.path)) or "task", self.types, agent=self.agent_mode)
         extra = {
             "components": list(comp_list),
             "components_detail": list(comp_detail or []),
