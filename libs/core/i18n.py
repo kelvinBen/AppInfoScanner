@@ -20,6 +20,7 @@ _CATALOG = {
     "[*] AI verify: {} files / {} hits, granularity={}": {"zh": "[*] AI 复核: {} 个文件 / {} 条命中, 粒度={}", "en": "[*] AI verify: {} files / {} hits, granularity={}"},
     "[-] AI verify: all providers failed, skip remaining": {"zh": "[-] AI 复核: 全部 provider 失败, 跳过剩余批次", "en": "[-] AI verify: all providers failed, skip remaining"},
     "[*] AI verify done: {} verdicts ({} confirm)": {"zh": "[*] AI 复核完成: {} 条判定 ({} 条确认)", "en": "[*] AI verify done: {} verdicts ({} confirm)"},
+    "[*] Pruned {} old out/ run dirs (kept {} recent / {}d)": {"zh": "[*] 已清理 {} 个过期 out/ 运行子目录(保留最近 {} 个 / {} 天内)", "en": "[*] Pruned {} old out/ run dirs (kept {} recent / {}d)"},
     "[*] Agent resume: skipped {} cached files": {"zh": "[*] Agent 断点续扫: 跳过 {} 个已缓存文件", "en": "[*] Agent resume: skipped {} cached files"},
     "[*] AI asset review: {} media reviewed": {"zh": "[*] AI 资产理解: 已复核 {} 个媒体文件", "en": "[*] AI asset review: {} media reviewed"},
     "[*] ========= AI verdict summary: {} total / {} confirm ===============": {"zh": "[*] ========= AI 复核摘要: 共 {} 条 / 确认 {} 条 ===============", "en": "[*] ========= AI verdict summary: {} total / {} confirm ==============="},

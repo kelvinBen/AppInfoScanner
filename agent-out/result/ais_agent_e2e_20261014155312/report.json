@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "sample": "ais_agent_e2e",
+    "task_type": "Web",
+    "tool_version": "v1.0.10",
+    "create_time": "2026-10-14 15:53:18",
+    "agent_mode": true
+  },
+  "urls": [],
+  "hosts": [],
+  "ip_private": [],
+  "ip_public": [],
+  "ip_v6": [],
+  "loopback": [],
+  "credentials": {
+    "Amazon_AWS_AccessKeyID": [
+      {
+        "value": "AKIAIOSFODNN7EXAMPLE",
+        "files": [
+          "/tmp/ais_agent_e2e/index.html"
+        ]
+      }
+    ]
+  },
+  "pii": {
+    "Phone_CN": [
+      {
+        "value": "13912345678",
+        "files": [
+          "/tmp/ais_agent_e2e/index.html"
+        ]
+      }
+    ]
+  },
+  "other": [],
+  "components": [],
+  "components_detail": [],
+  "permissions": [],
+  "shell": [],
+  "sniffer": [],
+  "ai_verdict": [],
+  "ai_assets": [],
+  "details": {
+    "/tmp/ais_agent_e2e/index.html": [
+      "[Amazon_AWS_AccessKeyID]-->:AKIAIOSFODNN7EXAMPLE",
+      "[Phone_CN]-->: 13912345678"
+    ]
+  }
+}

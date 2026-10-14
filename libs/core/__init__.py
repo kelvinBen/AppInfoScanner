@@ -55,6 +55,33 @@ logs_path = ""
 log_file_path = ""
 
 
+# out/ 运行子目录裁剪: 双重标准——最近 keep 个 或 days 天内(任一满足即保留);
+# 解码持续写文件刷新目录 mtime, 运行中的实例天然最新不会被误裁
+def __prune_out_runs__(out_root, keep=None, days=None):
+    keep = out_keep_runs if keep is None else keep
+    days = out_keep_days if days is None else days
+    now = time.time()
+    try:
+        run_dirs = [os.path.join(out_root, name) for name in os.listdir(out_root)
+                    if os.path.isdir(os.path.join(out_root, name))]
+    except OSError:
+        return
+    run_dirs.sort(key=os.path.getmtime, reverse=True)
+    cutoff = now - days * 86400
+    removed = 0
+    for idx, run_dir in enumerate(run_dirs):
+        if idx < keep or os.path.getmtime(run_dir) >= cutoff:
+            continue
+        try:
+            shutil.rmtree(run_dir)
+            removed += 1
+        except OSError:
+            continue   # Windows 长路径/占用失败不阻塞启动
+    if removed:
+        logp(i18n.t("[*] Pruned {} old out/ run dirs (kept {} recent / {}d)",
+                    removed, keep, days))
+
+
 def __prune_logs__(logs_dir, keep=20):
     """按修改时间只保留最新 keep 个任务日志，防止 logs/ 无限膨胀。"""
     try:
@@ -141,6 +168,10 @@ def logp(msg):
 
 # 输出脱敏模式: none(原样)/hash(前8位+sha256指纹8位)/full(完全遮蔽);
 # hash 与 full 下完整值仅保留在 report.json(full 连 json 也遮蔽)
+# out/ 运行子目录保留策略: 双重标准(最近 N 个 或 7 天内, 任一满足即保留)
+out_keep_runs = 10
+out_keep_days = 7
+
 redact_mode = "none"
 
 
@@ -278,7 +309,11 @@ class Bootstrapper(object):
         # 配置与三方工具随用户工作区落盘：首次运行从内置默认值/脚本目录部署到默认根目录，
         # 之后优先使用工作区副本 —— 用户可直接编辑工作区 config.toml、按平台替换工具
         tools_dir = os.path.join(default_out_root, "tools")
-        output_path = os.path.join(out_dir, "out")
+        # out/ 下按运行实例建独立子目录(与 result/ 同构): 多程序并行互不破坏,
+        # 启动不再 rmtree 整个 out/
+        sample_name = __sanitize_sample_name__(inputs)
+        run_id = "{}_{}".format(sample_name, create_time)
+        output_path = os.path.join(out_dir, "out", run_id)
         # history 为跨运行的累积状态，始终跟随默认输出根目录，不随 -o 变动
         history_path = os.path.join(default_out_root, "history")
 
@@ -322,17 +357,12 @@ class Bootstrapper(object):
             os.makedirs(out_dir)
             logp(i18n.t("[*] Create directory {}", out_dir))
 
-        if os.path.exists(output_path):
-            try:
-                shutil.rmtree(output_path)
-            except Exception as e:
-                # 解决windows超长文件名删除问题
-                if not (platform.system() == "Windows"):
-                    raise e
-                self.__removed_dirs_cmd__(output_path)
-
-        os.makedirs(output_path)
+        # out 根目录与本次运行子目录; 不再整树清空(并行安全)
+        out_root = os.path.dirname(output_path)
+        os.makedirs(out_root, exist_ok=True)
+        os.makedirs(output_path, exist_ok=True)
         logp(i18n.t("[*] Create directory {}", output_path))
+        __prune_out_runs__(out_root)
 
         if not os.path.exists(download_path):
             os.makedirs(download_path)
