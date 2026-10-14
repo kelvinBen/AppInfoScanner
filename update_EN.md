@@ -26,6 +26,7 @@ Added:
 - Added direct binary string extraction for dex inputs (enabled by default, completes in seconds; can be disabled to fall back to baksmali for component path context)
 
 Fixed:
+- Fixed field-feedback batch: report tool_version wrongly showed v1.0.10 (now reads program version); Authorization_Header cross-line fake credentials (backslash-s narrowed to space/tab); HK/Macau permit bare form matching ARM immediates (uppercase-only); USCC all-hex strings rejected even when checksum passes; duplicate PII entries with/without downweight annotation merged; dex direct-extract mode falls back to baksmali by default due to URL coverage regression
 - Fixed shell gate wrongly blocking --prefer-dump and --unpack success/failure fallback paths (explicit unpack works end to end for the first time); unconfirmed shell suspicion now downgrades to a warning and scanning continues
 - Fixed frida being a hard prerequisite for plain scans (only --unpack needs it); --scope file read failure now denies all sniffing
 - Fixed OID pseudo-versions being treated as component versions (prefix filtering for 1.2.840.* etc. plus semantic validation, withdrawing false "safe" verdicts)
