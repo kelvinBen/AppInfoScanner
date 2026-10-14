@@ -50,6 +50,68 @@ class BaseTask(object):
         self.scope_domains = self.__load_scope__() if scope else None
         self.file_queue = Queue()
 
+    # Agent 断点续扫: 已处理文件 MD5 缓存于输出目录, 重试时跳过
+    def __agent_cache_path__(self):
+        return os.path.join(str(cores.output_path), "agent-cache.json")
+
+    @staticmethod
+    def __file_md5__(path):
+        import hashlib
+        try:
+            h = hashlib.md5()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    h.update(chunk)
+            return h.hexdigest()
+        except OSError:
+            return None
+
+    def __filter_queue_by_cache__(self):
+        if not self.agent_mode:
+            return
+        done = {}
+        try:
+            import json
+            with open(self.__agent_cache_path__(), "r", encoding="utf-8") as f:
+                done = json.load(f).get("files", {})
+        except (OSError, ValueError):
+            pass
+        keep, skipped = [], 0
+        while not self.file_queue.empty():
+            item = self.file_queue.get()
+            digest = self.__file_md5__(item)
+            if digest and digest in done:
+                skipped += 1
+                continue
+            keep.append(item)
+        for item in keep:
+            self.file_queue.put(item)
+        self._scanned_md5 = [d for d in (self.__file_md5__(x) for x in keep) if d]
+        if skipped:
+            cores.logp(cores.i18n.t(
+                "[*] Agent resume: skipped {} cached files", skipped))
+
+    def __record_agent_cache__(self):
+        if not self.agent_mode or not getattr(self, "_scanned_md5", None):
+            return
+        import json
+        import time
+        cache_path = self.__agent_cache_path__()
+        done = {}
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                done = json.load(f).get("files", {})
+        except (OSError, ValueError):
+            pass
+        for digest in self._scanned_md5:
+            done[digest] = {"ts": time.strftime("%Y-%m-%d %H:%M:%S")}
+        try:
+            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump({"files": done}, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            cores.logf("[AGENT] write cache failed: {}".format(e))
+
     # 加载授权域名清单(每行一个域名或后缀)，仅名单内的域名参与嗅探
     def __load_scope__(self):
         try:
@@ -98,7 +160,8 @@ class BaseTask(object):
                 cores.logp("  " + line)
             raise cores.ShellDetected("shell detected: " + "; ".join(shell_report[:2]))
 
-        # 线程控制中心
+        # 线程控制中心(agent 模式先按 MD5 缓存过滤, 重试跳过已处理文件)
+        self.__filter_queue_by_cache__()
         cores.logp(
             "[*] =========  Searching for strings that match the rules ===============")
         self.__threads_control__(file_queue, comp_list)
@@ -106,6 +169,7 @@ class BaseTask(object):
         # 等待线程结束
         for thread in self.thread_list:
             thread.join()
+        self.__record_agent_cache__()
         cores.progress_end()
         if cores.thread_failed:
             cores.logp(cores.i18n.t("[-] Some worker threads aborted, results may be incomplete (see log file)"))

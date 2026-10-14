@@ -170,5 +170,55 @@ class TestJsonOnlyAndTimeout(unittest.TestCase):
             self.assertIn(flag, result.output)
 
 
+class TestAgentResume(unittest.TestCase):
+    # 13-3 第二批: MD5 断点续扫(agent 模式)
+    def make_task_with_files(self, tmp):
+        import os
+        task = BaseTask("Web", "/tmp/x", agent=True)
+        for name in ("a.js", "b.js"):
+            open(os.path.join(tmp, name), "w").write("content-" + name)
+            task.file_queue.put(os.path.join(tmp, name))
+        import libs.core as cores
+        with __import__("unittest").mock.patch.object(
+                cores, "output_path", tmp, create=True):
+            pass
+        return task, tmp
+
+    def test_filter_and_record_roundtrip(self):
+        import os
+        from unittest import mock
+        import libs.core as cores
+        tmp = __import__("tempfile").mkdtemp()
+        task = BaseTask("Web", "/tmp/x", agent=True)
+        for name in ("a.js", "b.js"):
+            open(os.path.join(tmp, name), "w").write("c-" + name)
+            task.file_queue.put(os.path.join(tmp, name))
+        with mock.patch.object(cores, "output_path", tmp, create=True):
+            task.__filter_queue_by_cache__()
+            self.assertEqual(task.file_queue.qsize(), 2)   # 首跑全保留
+            task.__record_agent_cache__()
+            # 二跑: 全部命中缓存被跳过
+            for name in ("a.js", "b.js"):
+                task.file_queue.put(os.path.join(tmp, name))
+            task.__filter_queue_by_cache__()
+        self.assertEqual(task.file_queue.qsize(), 0)
+        import json
+        cache = json.load(open(os.path.join(tmp, "agent-cache.json")))
+        self.assertEqual(len(cache["files"]), 2)
+
+    def test_normal_mode_no_cache(self):
+        from unittest import mock
+        import libs.core as cores
+        import tempfile, os
+        tmp = tempfile.mkdtemp()
+        task = BaseTask("Web", "/tmp/x")   # 非 agent
+        open(os.path.join(tmp, "a.js"), "w").write("x")
+        task.file_queue.put(os.path.join(tmp, "a.js"))
+        with mock.patch.object(cores, "output_path", tmp, create=True):
+            task.__filter_queue_by_cache__()
+        self.assertEqual(task.file_queue.qsize(), 1)   # 不过滤
+        self.assertFalse(os.path.exists(os.path.join(tmp, "agent-cache.json")))
+
+
 if __name__ == "__main__":
     unittest.main()
