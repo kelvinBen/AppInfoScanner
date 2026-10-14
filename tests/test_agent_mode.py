@@ -119,5 +119,56 @@ class TestRedact(unittest.TestCase):
         self.assertIn("--redact", result.output)
 
 
+class TestJsonOnlyAndTimeout(unittest.TestCase):
+    # 13-3 第二批: json-only(stdout 纯 JSON/过程输出走 stderr) 与总超时
+    def test_run_with_timeout_pass(self):
+        import app
+        ran = []
+        app._run_with_timeout(lambda: ran.append(1), 5)
+        self.assertEqual(ran, [1])
+        app._run_with_timeout(lambda: None, None)   # 无超时直跑
+
+    def test_run_with_timeout_expires(self):
+        import time, app
+        t0 = time.time()
+        with self.assertRaises(TimeoutError):
+            app._run_with_timeout(lambda: time.sleep(3), 0.2)
+        self.assertLess(time.time() - t0, 2)
+
+    def test_json_only_routes_progress_to_stderr(self):
+        import io as _io, contextlib
+        import libs.core as cores
+        old = cores.json_only
+        try:
+            cores.json_only = True
+            cores._progress_is_tty = None
+            cores._progress_tick = 0
+            err, out = _io.StringIO(), _io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+                cores.progress("working")
+            self.assertIn("working", err.getvalue())
+            self.assertEqual(out.getvalue(), "")
+        finally:
+            cores.json_only = old
+            cores._progress_is_tty = None
+            cores._progress_tick = 0
+
+    def test_build_report_payload_reusable(self):
+        from libs.core import report
+        data = report.classify_results({}, set(), set())
+        meta = report.build_report_meta("t", "Android")
+        payload = report.build_report_payload(meta, data, {"components": []})
+        self.assertIn("meta", payload)
+        self.assertIn("components", payload)
+
+    def test_cli_flags_registered(self):
+        from click.testing import CliRunner
+        import app
+        result = CliRunner().invoke(app.cli, ["web", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        for flag in ("--format", "--timeout", "--redact", "--agent"):
+            self.assertIn(flag, result.output)
+
+
 if __name__ == "__main__":
     unittest.main()

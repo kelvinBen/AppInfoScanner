@@ -5,6 +5,7 @@
 # Gitee: https://gitee.com/kelvin_ben/AppInfoScanner
 import os
 import re
+import sys as _sys
 from queue import Queue
 import libs.core as cores
 from libs.core import report
@@ -20,7 +21,7 @@ class BaseTask(object):
     # 统一初始化入口
 
     def __init__(self, types="Android", inputs="", rules="", sniffer=False, threads=10, package="",
-                 unpack=False, prefer_dump=None, scope=None, agent=False):
+                 unpack=False, prefer_dump=None, scope=None, agent=False, output_format="all"):
         # 统一初始化入口
         # 实例级可变状态(不用类属性: 同进程多次任务会累积泄漏)
         self.thread_list = []
@@ -34,6 +35,8 @@ class BaseTask(object):
         # Agent 模式安全默认: 强制关嗅探(越权交互)、禁止 --unpack(不动设备)、
         # 英文输出、结果目录隔离(agent- 前缀)
         self.agent_mode = bool(agent)
+        self.output_format = output_format
+        cores.json_only = (output_format == "json-only")
         if self.agent_mode:
             sniffer = False
             if unpack:
@@ -201,10 +204,17 @@ class BaseTask(object):
         for name, writer, path in (("json", report.write_json_report, cores.json_result_path),
                                     ("txt", report.write_txt_report, cores.txt_result_path),
                                     ("xlsx", report.write_xlsx_report, cores.xls_result_path)):
+            if self.output_format == "json-only" and name != "json":
+                continue
             try:
                 writer(path, meta, data, extra)
             except Exception as e:
                 cores.logp(cores.i18n.t("[-] Write {} report failed: {}", name, e))
+        if self.output_format == "json-only":
+            import json as _json
+            _sys.stdout.write(_json.dumps(
+                report.build_report_payload(meta, data, extra), ensure_ascii=False) + "\n")
+            _sys.stdout.flush()
 
         cores.logp("[*] ========= Summary: ===============")
         cores.logp("  URL: %d    Domain: %d    Private IP: %d    Public IP: %d    IPv6: %d    Loopback: %d" % (

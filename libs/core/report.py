@@ -213,8 +213,8 @@ def _split_sensitive(key):
     return name, value
 
 
-# 结构化JSON报告
-def write_json_report(path, meta, data, extra):
+# 结构化 payload 组装(json-only 模式复用于 stdout 输出)
+def build_report_payload(meta, data, extra):
     payload = {"meta": meta}
     for section in ("urls", "hosts", "ip_private", "ip_public", "ip_v6", "loopback"):
         payload[section] = [
@@ -227,9 +227,15 @@ def write_json_report(path, meta, data, extra):
     payload["other"] = [
         {"value": key, "files": files} for key, files in data["other"].items()]
     payload.update(extra)  # components/permissions/shell/sniffer 等
+    if getattr(cores_mod(), "redact_mode", "none") == "full":
+        payload = _deep_redact(payload)
+    return payload
+
+
+# 结构化JSON报告
+def write_json_report(path, meta, data, extra):
+    payload = build_report_payload(meta, data, extra)
     with open(path, "w", encoding="utf-8") as f:
-        if getattr(cores_mod(), "redact_mode", "none") == "full":
-            payload = _deep_redact(payload)
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 

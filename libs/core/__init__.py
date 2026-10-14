@@ -125,9 +125,17 @@ def logf(msg):
         logger.log(level, msg)
 
 
+# json-only 模式: 过程输出改走 stderr, stdout 只留最终 JSON(Agent 管道解析)
+json_only = False
+
+
+def _con_stream():
+    return _sys.stderr if json_only else _sys.stdout
+
+
 # 控台+日志双写, flush保证管道场景实时可见
 def logp(msg):
-    print(i18n.ts(msg), flush=True)
+    print(i18n.ts(msg), file=_con_stream(), flush=True)
     logf(msg)
 
 
@@ -192,8 +200,8 @@ def progress(msg):
             # 按块降级: 首条立即输出, 之后每 _PROGRESS_BLOCK 条换行一次
             _progress_tick += 1
             if _progress_tick == 1 or _progress_tick % _PROGRESS_BLOCK == 0:
-                _sys.stdout.write(msg + "\n")
-                _sys.stdout.flush()
+                _con_stream().write(msg + "\n")
+                _con_stream().flush()
 
 
 # 进度行上方插入完整输出(脱敏模式下命中值打码)
@@ -205,8 +213,8 @@ def notice(msg):
     logf(msg)
     with _progress_lock:
         pad = " " * max(0, len(_progress_last) - len(msg))
-        _sys.stdout.write("\r" + msg + pad + "\n")
-        _sys.stdout.flush()
+        _con_stream().write("\r" + msg + pad + "\n")
+        _con_stream().flush()
         _progress_last = ""
 
 
@@ -215,8 +223,8 @@ def progress_end():
     global _progress_last
     with _progress_lock:
         if _progress_last:
-            _sys.stdout.write("\n")
-            _sys.stdout.flush()
+            _con_stream().write("\n")
+            _con_stream().flush()
         _progress_last = ""
 
 
