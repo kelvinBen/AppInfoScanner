@@ -75,6 +75,16 @@ def run(section="all", config_path=None, ask=None):
     import tomllib
     with open(path, "rb") as f:
         parsed = tomllib.load(f)
+    # rules.toml 规则库并入展示(个人配置同键优先)
+    rules_path = os.path.join(os.path.dirname(path), "rules.toml")
+    if os.path.exists(rules_path):
+        with open(rules_path, "rb") as f:
+            rules_parsed = tomllib.load(f)
+        for key, value in rules_parsed.items():
+            if key not in parsed:
+                parsed[key] = value
+            elif isinstance(value, dict) and isinstance(parsed[key], dict):
+                parsed[key] = {**value, **parsed[key]}
     cfg = dc.merge_over_defaults(parsed)
     changed = []
     for sec_name, sec_desc, items in REGISTRY:
@@ -105,8 +115,10 @@ def run(section="all", config_path=None, ask=None):
         raise Cancel()
     backup = "{}.bak.{}".format(path, time.strftime("%Y%m%d%H%M%S"))
     shutil.copy2(path, backup)
+    # 只写个人配置键: 规则键(rules.toml 托管)不落 config.toml
+    _, personal = dc.split_config(cfg)
     with open(path, "w", encoding="utf-8") as f:
-        f.write(dc.dump_config(cfg))
+        f.write(dc.dump_config(personal))
     print("[+] 已写入, 备份: {}".format(backup))
     return changed
 

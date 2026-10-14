@@ -1356,6 +1356,38 @@ def version_lt(a, b):
     return False
 
 
+# 规则库键(落 rules.toml, 工具托管/自动更新目标); 其余键落 config.toml(个人配置)。
+# rules.toml 允许手改, 同键优先级低于 config.toml
+RULE_KEYS = frozenset((
+    "filter_strs", "filter_no", "filter_no_domains",
+    "filter_ak_map", "filter_pii_map",
+    "filter_components", "ios_components",
+    "shell_vendors", "apk_permissions", "ios_permissions",
+    "pii_test_vectors", "pii_test_paths", "email_tlds",
+    "uscc_valid_codes", "component_versions", "component_hosts",
+    "sniffer_filter", "web_file_suffix",
+))
+
+
+# 按键集拆分配置字典
+def split_config(cfg):
+    rules = {k: v for k, v in cfg.items() if k in RULE_KEYS}
+    personal = {k: v for k, v in cfg.items() if k not in RULE_KEYS}
+    return rules, personal
+
+
+# 个人配置文件正文(config.toml, 轻量可手改)
+def generate_config_toml():
+    _, personal = split_config(DEFAULTS)
+    return dump_config(personal)
+
+
+# 规则库文件正文(rules.toml, 检测规则全集)
+def generate_rules_toml():
+    rules, _ = split_config(DEFAULTS)
+    return dump_config(rules)
+
+
 # 按版本顺序执行迁移; 返回(迁移后config, 是否有变更)
 def migrate_config(config, from_version):
     changed = False
