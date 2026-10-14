@@ -86,6 +86,159 @@ def call_with_fallback(prompt, capability="text", max_tokens=1024):
     return None, None
 
 
+# ---- 多模态资产理解: 图片/视频帧直送 vision, 音频走转写 ----
+
+_MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                ".webp": "image/webp", ".gif": "image/gif"}
+_ASSET_EXTS = set(_MEDIA_TYPES) | {".mp4", ".mov", ".mp3", ".aac", ".wav", ".m4a"}
+_DEFAULT_KEYWORDS = ("screenshot", "qr", "code", "login", "cert", "key",
+                     "pay", "account", "idcard", "passport", "账号", "二维码")
+
+
+# 采集多模态资产: 解码产物(assets/res/壳payload)下的图片/视频/音频,
+# 命名关键词优先 + 单文件大小/总数量双预算, 防素材目录打爆配额
+def collect_assets(root_dir):
+    cfg = getattr(cores.config, "ai_verify", {}) or {}
+    max_count = int(cfg.get("asset_max_count", 20))
+    max_mb = int(cfg.get("asset_max_mb", 4))
+    keywords = tuple(cfg.get("asset_keywords", list(_DEFAULT_KEYWORDS)))
+    picked, candidates = [], []
+    try:
+        for dirpath, _, files in os.walk(root_dir):
+            for name in files:
+                ext = os.path.splitext(name)[1].lower()
+                if ext not in _ASSET_EXTS:
+                    continue
+                fp = os.path.join(dirpath, name)
+                try:
+                    size = os.path.getsize(fp)
+                except OSError:
+                    continue
+                if size > max_mb * 1024 * 1024 or size <= 0:
+                    continue
+                lowered = name.lower()
+                pri = 0 if any(k in lowered for k in keywords) else 1
+                candidates.append((pri, size, fp, ext))
+    except OSError:
+        return []
+    candidates.sort(key=lambda t: (t[0], t[1]))
+    for _, _, fp, ext in candidates:
+        if len(picked) >= max_count:
+            break
+        picked.append((fp, ext))
+    return picked
+
+
+# 图片文件转 base64 data(超限返回 None)
+def _image_b64(path, max_mb):
+    import base64
+    try:
+        if os.path.getsize(path) > max_mb * 1024 * 1024:
+            return None
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("ascii")
+    except OSError:
+        return None
+
+
+# 图文请求: openai_compatible(content 数组 image_url) / anthropic(image 块)
+def chat_image(provider_cfg, prompt, image_path):
+    import base64
+    kind = provider_cfg.get("kind", "openai_compatible")
+    base = provider_cfg["base_url"].rstrip("/")
+    key = expand_env(provider_cfg.get("api_key", "")).strip()
+    model = provider_cfg.get("model_vision") or provider_cfg.get("model_text", "")
+    media = _MEDIA_TYPES.get(os.path.splitext(image_path)[1].lower(), "image/png")
+    cfg = getattr(cores.config, "ai_verify", {}) or {}
+    max_mb = int(cfg.get("asset_max_mb", 4))
+    timeout = int(cfg.get("timeout", 60))
+    data = _image_b64(image_path, max_mb)
+    if data is None:
+        raise ValueError("image too large: " + image_path)
+    if kind == "anthropic":
+        resp = requests.post(
+            base + "/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image", "source": {"type": "base64", "media_type": media, "data": data}}]}]},
+            timeout=timeout)
+        resp.raise_for_status()
+        return "".join(b.get("text", "") for b in resp.json().get("content", []))
+    headers = {"content-type": "application/json"}
+    if key:
+        headers["Authorization"] = "Bearer " + key
+    resp = requests.post(
+        base + "/chat/completions", headers=headers,
+        json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": "data:%s;base64,%s" % (media, data)}}]}]},
+        timeout=timeout)
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+
+# 音频转写(openai_compatible /audio/transcriptions; anthropic 无音频协议跳过)
+def transcribe(provider_cfg, audio_path):
+    if provider_cfg.get("kind", "openai_compatible") == "anthropic":
+        return None
+    model = provider_cfg.get("model_audio")
+    if not model:
+        return None
+    base = provider_cfg["base_url"].rstrip("/")
+    key = expand_env(provider_cfg.get("api_key", "")).strip()
+    timeout = int((getattr(cores.config, "ai_verify", {}) or {}).get("timeout", 60))
+    with open(audio_path, "rb") as f:
+        resp = requests.post(
+            base + "/audio/transcriptions",
+            headers={"Authorization": "Bearer " + key} if key else {},
+            files={"file": (os.path.basename(audio_path), f)},
+            data={"model": model}, timeout=timeout)
+    resp.raise_for_status()
+    return resp.json().get("text", "")
+
+
+# 资产理解入口: 图片直送 vision, 音频转写后归入摘要; 逐 provider 懒降级
+ASSET_PROMPT = ("识别图中与安全相关的敏感要素(账号/密钥/token/内部URL/二维码内容/"
+                "证件信息), 逐条列出; 无则回答: 无敏感要素")
+
+
+def run_asset_review(root_dir):
+    cfg = getattr(cores.config, "ai_verify", {}) or {}
+    if not cfg.get("enabled") or not (cfg.get("provider") or {}):
+        return []
+    assets = collect_assets(root_dir)
+    if not assets:
+        return []
+    results = []
+    for fp, ext in assets:
+        name, p = select("vision")
+        if name and ext in _MEDIA_TYPES:
+            try:
+                text = chat_image(p, ASSET_PROMPT, fp)
+                results.append({"file": fp, "kind": "image", "summary": (text or "").strip()[:500]})
+                continue
+            except Exception as e:
+                cores.logf("[AI] vision failed ({}): {}".format(fp, e))
+        name_a, p_a = select("audio")
+        if name_a and ext in (".mp3", ".aac", ".wav", ".m4a"):
+            try:
+                text = transcribe(p_a, fp)
+                if text:
+                    results.append({"file": fp, "kind": "audio", "summary": text.strip()[:500]})
+                continue
+            except Exception as e:
+                cores.logf("[AI] transcribe failed ({}): {}".format(fp, e))
+        # 视频需 ffmpeg 抽帧, 环境缺失时跳过并提示
+        if ext in (".mp4", ".mov"):
+            cores.logf("[AI] video frame extraction not bundled yet, skip: " + fp)
+    if results:
+        cores.logp(cores.i18n.t(
+            "[*] AI asset review: {} media reviewed", len(results)))
+    return results
+
+
 # ---- 复核流程: 收集 -> 粒度提取 -> 分批调用 -> 解析回写 ----
 
 _HIT_RE = re.compile(r"^\[([A-Za-z0-9_]+)\]-->:?\s*(.+)$", re.S)

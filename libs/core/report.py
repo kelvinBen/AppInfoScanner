@@ -230,6 +230,13 @@ def write_txt_report(path, meta, data, extra):
     lines.extend("  " + p for p in perms) if perms else lines.append("  无")
     lines.append("")
 
+    assets = extra.get("ai_assets") or []
+    if assets:
+        lines.append("[AI 资产理解] (%d)" % len(assets))
+        for a in assets:
+            lines.append("  %s [%s]: %s" % (a.get("file", ""), a.get("kind", ""), a.get("summary", "")))
+        lines.append("")
+
     verdicts = extra.get("ai_verdict") or []
     if verdicts:
         lines.append("[AI 复核与调用链] (%d)" % len(verdicts))
@@ -336,6 +343,10 @@ def write_xlsx_report(path, meta, data, extra):
     sheet("Shell", ("Conclusion",), [(s,) for s in extra.get("shell") or []])
     if extra.get("sniffer"):
         sheet("Sniffer", SNIFFER_HEADER, [tuple(r) for r in extra["sniffer"]])
+    assets = extra.get("ai_assets") or []
+    if assets:
+        sheet("AI_Assets", ("File", "Kind", "Summary"),
+              [(a.get("file", ""), a.get("kind", ""), a.get("summary", "")) for a in assets])
     verdicts = extra.get("ai_verdict") or []
     if verdicts:
         sheet("AI_Verdict", ("Value", "Verdict", "Type", "Basis", "Call chain", "Flows"),

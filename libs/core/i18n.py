@@ -20,6 +20,7 @@ _CATALOG = {
     "[*] AI verify: {} files / {} hits, granularity={}": {"zh": "[*] AI 复核: {} 个文件 / {} 条命中, 粒度={}", "en": "[*] AI verify: {} files / {} hits, granularity={}"},
     "[-] AI verify: all providers failed, skip remaining": {"zh": "[-] AI 复核: 全部 provider 失败, 跳过剩余批次", "en": "[-] AI verify: all providers failed, skip remaining"},
     "[*] AI verify done: {} verdicts ({} confirm)": {"zh": "[*] AI 复核完成: {} 条判定 ({} 条确认)", "en": "[*] AI verify done: {} verdicts ({} confirm)"},
+    "[*] AI asset review: {} media reviewed": {"zh": "[*] AI 资产理解: 已复核 {} 个媒体文件", "en": "[*] AI asset review: {} media reviewed"},
     "[*] ========= AI verdict summary: {} total / {} confirm ===============": {"zh": "[*] ========= AI 复核摘要: 共 {} 条 / 确认 {} 条 ===============", "en": "[*] ========= AI verdict summary: {} total / {} confirm ==============="},
     # ---- 启动/目录 ----
     "[*] Output root: {}": {"zh": "[*] 输出根目录: {}", "en": "[*] Output root: {}"},
