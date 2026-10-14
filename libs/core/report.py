@@ -113,10 +113,16 @@ def classify_results(result_dict, ak_names, pii_names):
         "other": {},
     }
 
+    # 文件清单去重走 set 索引: 高频值(如 file:///)可命中近全量 smali 文件,
+    # list 成员判断在 baksmali 规模下是 O(N²) 字符串比较, 报告阶段直接卡死
+    _file_sets = {}
+
     def put(bucket, key, file_path):
-        bucket.setdefault(key, [])
-        if file_path not in bucket[key]:
-            bucket[key].append(file_path)
+        seen = _file_sets.setdefault((id(bucket), key), set())
+        if file_path in seen:
+            return
+        seen.add(file_path)
+        bucket.setdefault(key, []).append(file_path)
 
     for file_path, results in result_dict.items():
         for value in results:

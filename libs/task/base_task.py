@@ -51,10 +51,10 @@ class BaseTask(object):
         self.file_queue = Queue()
 
     # Agent 断点续扫: 已处理文件 MD5 缓存, 重试时跳过;
-    # 必须放输出根(out/ 的上级)——Bootstrapper 每次运行会 rmtree 重建 out/
+    # 锚定输出根(out_dir 全局): out/ 下按运行实例建子目录且会被裁剪, 缓存不能落那里
     def __agent_cache_path__(self):
-        out_root = os.path.dirname(str(cores.output_path)) or str(cores.output_path)
-        return os.path.join(out_root, "agent-cache.json")
+        base = str(getattr(cores, "out_dir", "")) or os.path.dirname(str(cores.output_path))
+        return os.path.join(base, "agent-cache.json")
 
     @staticmethod
     def __file_md5__(path):
@@ -110,8 +110,11 @@ class BaseTask(object):
             done[digest] = {"ts": time.strftime("%Y-%m-%d %H:%M:%S")}
         try:
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-            with open(cache_path, "w", encoding="utf-8") as f:
+            # 原子写(tmp+rename): 并行实例同时记录时不损坏, 最多丢一次合并
+            tmp_path = cache_path + ".tmp." + str(os.getpid())
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump({"files": done}, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, cache_path)
         except OSError as e:
             cores.logf("[AGENT] write cache failed: {}".format(e))
 
