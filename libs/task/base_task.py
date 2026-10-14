@@ -50,9 +50,11 @@ class BaseTask(object):
         self.scope_domains = self.__load_scope__() if scope else None
         self.file_queue = Queue()
 
-    # Agent 断点续扫: 已处理文件 MD5 缓存于输出目录, 重试时跳过
+    # Agent 断点续扫: 已处理文件 MD5 缓存, 重试时跳过;
+    # 必须放输出根(out/ 的上级)——Bootstrapper 每次运行会 rmtree 重建 out/
     def __agent_cache_path__(self):
-        return os.path.join(str(cores.output_path), "agent-cache.json")
+        out_root = os.path.dirname(str(cores.output_path)) or str(cores.output_path)
+        return os.path.join(out_root, "agent-cache.json")
 
     @staticmethod
     def __file_md5__(path):
