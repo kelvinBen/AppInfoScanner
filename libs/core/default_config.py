@@ -494,6 +494,19 @@ DEFAULTS = {
     # dex 输入解析模式: true=二进制字符串直提(秒级, 无组件路径上下文);
     # false=全量 baksmali 反编译(组件指纹按 smali 路径匹配, 中间产物大且耗时)
     "dex_strings_direct": True,
+    # AI 语义复核: 默认关闭; 多 provider 字典表(本地 base_url 指向本机默认最高优先,
+    # 数据不出内网), api_key 支持 ${ENV_VAR} 引用避免明文; kind=openai_compatible
+    # (OpenAI/DeepSeek/GLM/Kimi/Qwen 兼容模式与 Ollama/vLLM 本地部署)|anthropic;
+    # model_text/model_vision/model_audio 为分能力模型槽, priority 越小越优先
+    "ai_verify": {
+        "enabled": False,
+        "timeout": 60,
+        "batch_size": 5,
+        "verify_buckets": ["pii", "credentials"],
+        "granularity": "method",
+        "max_file_tokens": 6000,
+        "provider": {},
+    },
     # USCC(统一社会信用代码)格式校验数据:
     # 首位必须是合法的登记管理部门码, 次位必须是合法的机构类别码
     # 用于拒绝恰好通过校验位计算但实际不是信用代码的 hex 串
@@ -1127,6 +1140,12 @@ DEFAULTS = {
 
 # 生成默认 config.toml 时每个配置段的前置说明
 _DOC = {
+    "ai_verify": ["AI 语义复核(默认关闭): [ai_verify.provider.<名字>] 增配 provider;",
+                  "kind=openai_compatible(OpenAI/DeepSeek/GLM/Kimi/Qwen/Ollama/vLLM) 或 anthropic;",
+                  "base_url/api_key(支持 ${ENV_VAR} 引用)/model_text|vision|audio 分能力槽/priority;",
+                  "本地 base_url(127.0.0.1/localhost)默认最高优先; granularity=method 云API降档仅送命中方法体",
+                  "示例: [ai_verify.provider.local-ollama]  kind='openai_compatible'",
+                  "        base_url='http://127.0.0.1:11434/v1'  api_key=''  model_text='qwen2.5-coder:7b'"],
     "pii_test_paths": ["PII 测试向量路径降权模式: 命中文件路径即标注 疑似测试向量(子串匹配不区分大小写);",
                        "standalone 边界与黑名单之后的第二道纵深, 可自行增补(并集合并)"],
     "dex_strings_direct": ["dex 输入解析模式: true=二进制字符串直提(秒级, 无组件路径上下文, 默认);",
@@ -1236,6 +1255,31 @@ def _toml_str(value):
     return '"' + escaped + '"'
 
 
+def _toml_scalar(value):
+    """混合表叶子值 TOML 化: bool/int/float/list/str 分派。"""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, list):
+        return _toml_array([str(v) for v in value])
+    return _toml_str(value)
+
+
+def _dump_mixed_table(path, value):
+    """混合表递归序列化: 标量/数组落当前小节, 子 dict 递归为嵌套小节。"""
+    lines = ["[" + path + "]"]
+    for sub_key, sub_value in value.items():
+        if isinstance(sub_value, dict):
+            continue
+        lines.append(_toml_key(sub_key) + " = " + _toml_scalar(sub_value))
+    lines.append("")
+    for sub_key, sub_value in value.items():
+        if isinstance(sub_value, dict):
+            lines.extend(_dump_mixed_table(path + "." + _toml_key(sub_key), sub_value))
+    return lines
+
+
 def _toml_array(values):
     if not values:
         return "[]"
@@ -1267,6 +1311,9 @@ def dump_config(config_map):
                         else:
                             lines.append(_toml_key(kind) + " = " + _toml_str(str(val)))
                     lines.append("")
+            elif value and any(isinstance(v, dict) for v in value.values()):
+                # 混合表([ai_verify] 等): 标量/数组在前, 子 dict 递归为嵌套小节
+                lines.extend(_dump_mixed_table(_toml_key(key), value))
             elif value and all(isinstance(v, list) for v in value.values()):
                 for name, rules in value.items():
                     lines.append("[" + _toml_key(key) + "." + _toml_key(name) + "]")
@@ -1333,7 +1380,7 @@ def generate_default_toml():
     ordered = ["config_version", "filter_components", "ios_components", "filter_strs", "filter_no", "filter_no_domains",
                "shell_vendors", "apk_permissions", "ios_permissions",
                "web_file_suffix", "sniffer_filter", "email_tlds", "dex_strings_direct",
-               "method", "component_hosts",
+               "method", "component_hosts", "ai_verify",
                "filter_ak_map", "filter_pii_map", "headers", "data"]
     table_keys = [key for key in ordered if isinstance(DEFAULTS[key], dict)]
     scalar_keys = [key for key in ordered if key not in table_keys]
@@ -1357,6 +1404,7 @@ DEEP_MERGE_DICT_KEYS = (
     "uscc_valid_codes",                      # 格式校验
     "component_versions",                    # 版本影响
     "component_hosts",                       # 组件宿主归属
+    "ai_verify",                             # AI 语义复核(含 provider 子表)
 )
 # 需要并集合并的列表键(用户列表 + 代码新增项)
 UNION_MERGE_LIST_KEYS = (
