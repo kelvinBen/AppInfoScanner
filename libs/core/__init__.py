@@ -391,10 +391,11 @@ class Bootstrapper(object):
             pass  # 更新检测失败不影响正常使用
 
 
-    # 部署工作区config.toml与tools, 加载合并运行时配置
+    # 部署工作区 config.toml/rules.toml 与 tools, 加载合并运行时配置
     def __deploy_workspace__(self, script_root_dir, workspace_root):
         global config
         workspace_toml = os.path.join(workspace_root, "config.toml")
+        workspace_rules = os.path.join(workspace_root, "rules.toml")
         legacy_py = os.path.join(workspace_root, "config.py")
         if not os.path.exists(workspace_toml):
             if os.path.exists(legacy_py):
@@ -410,6 +411,9 @@ class Bootstrapper(object):
                     self.__write_default_toml__(workspace_toml)
             else:
                 self.__write_default_toml__(workspace_toml)
+        # 规则库独立文件: 缺失时从默认值部署; 旧单文件 config.toml 里的规则键拆分迁出
+        if not os.path.exists(workspace_rules):
+            self.__split_legacy_rules__(workspace_toml, workspace_rules)
 
         workspace_tools = os.path.join(workspace_root, "tools")
         if not os.path.exists(workspace_tools):
@@ -423,6 +427,15 @@ class Bootstrapper(object):
         try:
             with open(workspace_toml, "rb") as f:
                 parsed = tomllib.load(f)
+            # rules.toml 规则库并入: 个人配置(config.toml)同键优先
+            if os.path.exists(workspace_rules):
+                with open(workspace_rules, "rb") as f:
+                    rules_parsed = tomllib.load(f)
+                for key, value in rules_parsed.items():
+                    if key not in parsed:
+                        parsed[key] = value
+                    elif isinstance(value, dict) and isinstance(parsed[key], dict):
+                        parsed[key] = {**value, **parsed[key]}
             # 版本检查与自动迁移
             cfg_ver = parsed.get("config_version", "1.0.10")  # 无版本字段视为早期版本
             if default_config.version_lt(cfg_ver, default_config.CONFIG_VERSION):
@@ -444,9 +457,44 @@ class Bootstrapper(object):
         config = types.SimpleNamespace(**merged)
 
     def __write_default_toml__(self, workspace_toml):
+        # 双文件默认部署: config.toml(个人配置) + rules.toml(规则库)
         with open(workspace_toml, "w", encoding="utf-8") as f:
-            f.write(default_config.generate_default_toml())
+            f.write(default_config.generate_config_toml())
+        rules_path = os.path.join(os.path.dirname(workspace_toml), "rules.toml")
+        if not os.path.exists(rules_path):
+            with open(rules_path, "w", encoding="utf-8") as f:
+                f.write(default_config.generate_rules_toml())
+            logp(i18n.t("[*] Deploy rules to workspace: {}", rules_path))
         logp(i18n.t("[*] Deploy config to workspace: {}", workspace_toml))
+
+    # 旧单文件 config.toml 中的规则键拆分迁出到 rules.toml;
+    # 无规则键(新部署的纯个人配置)则直接部署默认规则库
+    def __split_legacy_rules__(self, workspace_toml, workspace_rules):
+        try:
+            with open(workspace_toml, "rb") as f:
+                parsed = tomllib.load(f)
+            rules, personal = default_config.split_config(parsed)
+            if rules:
+                backup = workspace_toml + ".bak." + time.strftime("%Y%m%d%H%M%S")
+                shutil.copy2(workspace_toml, backup)
+                with open(workspace_rules, "w", encoding="utf-8") as f:
+                    f.write("# 检测规则库(工具托管, 16-3 自动更新目标); 允许手改, 同键优先级低于 config.toml\n")
+                    f.write(default_config.dump_config(rules))
+                parsed.pop("config_version", None)
+                with open(workspace_toml, "w", encoding="utf-8") as f:
+                    f.write(default_config.dump_config(personal))
+                logp(i18n.t(
+                    "[*] Split rules {} keys -> rules.toml (config backup: {})",
+                    len(rules), os.path.basename(backup)))
+            else:
+                with open(workspace_rules, "w", encoding="utf-8") as f:
+                    f.write("# 检测规则库(工具托管, 16-3 自动更新目标); 允许手改, 同键优先级低于 config.toml\n")
+                    f.write(default_config.generate_rules_toml())
+                logp(i18n.t("[*] Deploy rules to workspace: {}", workspace_rules))
+        except Exception as e:
+            logp("[-] Split rules failed ({}), deploy default rules.toml".format(e))
+            with open(workspace_rules, "w", encoding="utf-8") as f:
+                f.write(default_config.generate_rules_toml())
 
     def __removed_dirs_cmd__(self, output_path):
         files = os.listdir(output_path)
