@@ -143,6 +143,21 @@ def update(check, tools):
     updater.perform_update(os.path.expanduser("~"))
 
 
+# 引导式配置(非规则层): 分步向导, 每步可 q 取消, 写回前备份
+@cli.command(help="Guided configuration for non-rule settings (interactive wizard).")
+@click.option("--section", required=False,
+              type=click.Choice(["all", "ai", "download", "space"]),
+              default="all", help="Section to configure (default: all).")
+def init(section):
+    from libs.core import wizard
+    try:
+        wizard.run(section)
+    except wizard.Cancel:
+        print("[*] 已取消, 未做任何修改")
+    except OSError as e:
+        print("[-] {}".format(e))
+
+
 def main():
     cli()
 
