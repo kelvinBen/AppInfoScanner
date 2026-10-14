@@ -163,6 +163,15 @@ class BaseTask(object):
             for permission in permissions:
                 cores.logp("  " + permission)
 
+        # AI 语义复核(默认关闭): pii/credentials 命中送 LLM 结构化判定
+        from libs.core import ai_verify
+        ai_verdicts = ai_verify.run_verify(self.result_dict)
+        if ai_verdicts:
+            confirm = sum(1 for v in ai_verdicts if v["verdict"] == "confirm")
+            cores.logp(cores.i18n.t(
+                "[*] ========= AI verdict summary: {} total / {} confirm ===============",
+                len(ai_verdicts), confirm))
+
         # 分类聚合并落盘三格式报告
         data = report.classify_results(
             self.result_dict,
@@ -176,6 +185,7 @@ class BaseTask(object):
             "permissions": list(permissions),
             "shell": list(shell_report),
             "sniffer": sniff_rows,
+            "ai_verdict": list(ai_verdicts),
             "details": {fp: sorted(values) for fp, values in self.result_dict.items()},
         }
         for name, writer, path in (("json", report.write_json_report, cores.json_result_path),

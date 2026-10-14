@@ -174,5 +174,116 @@ model_text = "qwen2.5:7b"
         self.assertEqual(merged["ai_verify"]["granularity"], "method")
 
 
+class TestCollectTargets(unittest.TestCase):
+    # 13-1b: 只收 pii/credentials 两桶, other/url 不送
+    def test_bucket_filter(self):
+        from libs.core import ai_verify
+        rd = {"/tmp/a.js": ["[Phone_CN]-->: 13912345678",
+                            "[Authorization_Header]-->: Bearer x",
+                            "[Suspected_SecretKey]-->: abcdef0123456789",
+                            "https://x.cn/1"]}
+        targets = ai_verify.collect_targets(rd)
+        self.assertIn("/tmp/a.js", targets)
+        names = [n for n, _ in targets["/tmp/a.js"]]
+        self.assertIn("Phone_CN", names)               # pii
+        self.assertIn("Authorization_Header", names)   # credentials
+        self.assertNotIn("Suspected_SecretKey", names) # other 桶不送
+
+    def test_disabled_returns_empty(self):
+        from libs.core import ai_verify
+        with mock.patch.object(cores.config, "ai_verify", {"enabled": False, "provider": {}}):
+            self.assertEqual(ai_verify.run_verify({"/a": ["[Phone_CN]-->: 13912345678"]}), [])
+
+
+class TestExtractRegions(unittest.TestCase):
+    def test_method_granularity_smali_cut(self):
+        import tempfile, os
+        from libs.core import ai_verify
+        tmp = tempfile.mkdtemp()
+        fp = os.path.join(tmp, "A.smali")
+        with open(fp, "w") as f:
+            f.write("junk-before\n.method public getIdCard()Ljava/lang/String;\n"
+                    "const-string v0, \"330227199303025415\"\n"
+                    ".end method\njunk-after")
+        region = ai_verify.extract_regions(fp, ["330227199303025415"], "method", 6000)
+        self.assertIn(".method", region)
+        self.assertIn("330227199303025415", region)
+        self.assertNotIn("junk-before", region)
+
+    def test_file_granularity_truncated(self):
+        import tempfile, os
+        from libs.core import ai_verify
+        tmp = tempfile.mkdtemp()
+        fp = os.path.join(tmp, "big.js")
+        with open(fp, "w") as f:
+            f.write("x" * 50000)
+        region = ai_verify.extract_regions(fp, [], "file", 1000)
+        self.assertLessEqual(len(region), 3000)   # max_chars = tokens*3
+
+
+class TestParseVerdicts(unittest.TestCase):
+    def test_fenced_json(self):
+        from libs.core import ai_verify
+        text = ('结论如下:\n```json\n[{"value": "13912345678", "verdict": "confirm", '
+                '"type": "手机号", "basis": "getIdCard() 返回值", "call_chain": "", "flows": []}]\n```')
+        out = ai_verify.parse_verdicts(text)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["verdict"], "confirm")
+        self.assertEqual(out[0]["type"], "手机号")
+
+    def test_garbage_returns_empty(self):
+        from libs.core import ai_verify
+        self.assertEqual(ai_verify.parse_verdicts("模型拒绝回答"), [])
+        self.assertEqual(ai_verify.parse_verdicts(None), [])
+
+
+class TestRunVerifyPipeline(unittest.TestCase):
+    def test_enabled_pipeline(self):
+        import tempfile, os
+        from libs.core import ai_verify
+        tmp = tempfile.mkdtemp()
+        fp = os.path.join(tmp, "a.smali")
+        with open(fp, "w") as f:
+            f.write('.method public getIdCard()\nconst-string v0, "330227199303025415"\n.end method')
+        rd = {fp: ["[IDCard_CN_18]-->: 330227199303025415"]}
+        verdict_json = ('[{"value":"330227199303025415","verdict":"confirm","type":"身份证号",'
+                        '"basis":"getIdCard() 硬编码返回","call_chain":"getIdCard()->registerAccountProvider",'
+                        '"flows":["test"]}]')
+        cfg = {"enabled": True, "provider": {"p1": {"kind": "openai_compatible",
+               "base_url": "http://127.0.0.1:11434/v1", "model_text": "m"}},
+               "verify_buckets": ["pii", "credentials"], "granularity": "method",
+               "max_file_tokens": 6000, "batch_size": 5, "timeout": 30}
+        with mock.patch.object(cores.config, "ai_verify", cfg), \
+                mock.patch.object(ai_verify, "call_with_fallback", return_value=("p1", verdict_json)):
+            out = ai_verify.run_verify(rd)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["type"], "身份证号")
+        self.assertEqual(out[0]["flows"], ["test"])
+
+
+class TestAiVerdictReport(unittest.TestCase):
+    def test_txt_and_xlsx_carry_verdicts(self):
+        import tempfile, os, json
+        from libs.core import report
+        tmp = tempfile.mkdtemp()
+        data = report.classify_results({}, set(), set())
+        meta = report.build_report_meta("t.apk", "Android")
+        extra = {"components": [], "components_detail": [], "permissions": [], "shell": [],
+                 "sniffer": [], "ai_verdict": [{"value": "3302***", "verdict": "confirm",
+                                                "type": "身份证号", "basis": "getIdCard()",
+                                                "call_chain": "A->B", "flows": ["test"]}],
+                 "details": {}}
+        xp = os.path.join(tmp, "r.xlsx")
+        tp = os.path.join(tmp, "r.txt")
+        report.write_xlsx_report(xp, meta, data, extra)
+        report.write_txt_report(tp, meta, data, extra)
+        from openpyxl import load_workbook
+        ws = load_workbook(xp)["AI_Verdict"]
+        self.assertIn("身份证号", [c.value for c in ws[2]])
+        txt = open(tp).read()
+        self.assertIn("[AI 复核与调用链] (1)", txt)
+        self.assertIn("A->B", txt)
+
+
 if __name__ == "__main__":
     unittest.main()

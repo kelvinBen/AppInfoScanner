@@ -86,6 +86,141 @@ def call_with_fallback(prompt, capability="text", max_tokens=1024):
     return None, None
 
 
+# ---- 复核流程: 收集 -> 粒度提取 -> 分批调用 -> 解析回写 ----
+
+_HIT_RE = re.compile(r"^\[([A-Za-z0-9_]+)\]-->:?\s*(.+)$", re.S)
+
+
+# 收集送检单元: {文件: [(规则名, 值), ...]}, 只取 verify_buckets 两桶
+def collect_targets(result_dict):
+    cfg = getattr(cores.config, "ai_verify", {}) or {}
+    buckets = set(cfg.get("verify_buckets", ["pii", "credentials"]))
+    ak_names = set(getattr(cores.config, "filter_ak_map", {}) or {})
+    pii_names = set(getattr(cores.config, "filter_pii_map", {}) or {})
+    files = {}
+    for fp, results in result_dict.items():
+        for r in results:
+            m = _HIT_RE.match(r.strip())
+            if not m:
+                continue
+            name, value = m.group(1), m.group(2).strip()
+            bucket = "credentials" if name in ak_names else ("pii" if name in pii_names else None)
+            if bucket in buckets:
+                files.setdefault(fp, [])
+                if (name, value) not in files[fp]:
+                    files[fp].append((name, value))
+    return files
+
+
+# 送检粒度提取: method=命中值邻近方法体(smali 感知 .method 边界, 其余回退窗口);
+# file=全文件按 max_file_tokens 上限截断(约 3 字符/token 估算)
+def extract_regions(file_path, values, granularity, max_chars):
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read(max_chars * 3)
+    except OSError:
+        return ""
+    if granularity == "file":
+        return content
+    regions = []
+    for value in values:
+        pos = content.find(value)
+        if pos < 0:
+            pos = 0
+        start = content.rfind(".method", max(0, pos - 4000), pos)
+        start = start if start >= 0 else max(0, pos - 800)
+        end = content.find(".end method", pos, pos + 4000)
+        end = end if end >= 0 else min(len(content), pos + 800)
+        regions.append((start, end))
+    if not regions:
+        return content[:max_chars * 3]
+    regions.sort()
+    merged = [list(regions[0])]
+    for s, e in regions[1:]:
+        if s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return "\n...\n".join(content[s:e] for s, e in merged)
+
+
+# 构造复核 prompt: 命中清单 + 来源代码, 要求只输出 JSON 数组判定
+def build_prompt(batch_items, granularity, max_chars):
+    cfg = getattr(cores.config, "ai_verify", {}) or {}
+    max_chars = max_chars or int(cfg.get("max_file_tokens", 6000)) * 3
+    lines = ["你是安全扫描结果复核助手。以下为移动应用扫描命中的敏感信息及来源代码。",
+             "对每条命中输出判定, 只输出 JSON 数组(无其他文字), 每元素:",
+             '{"value":"原值前16字符","verdict":"confirm|reject|unknown",',
+             '"type":"修正类型(如 手机号/身份证/密钥/测试数据/格式巧合)",',
+             '"basis":"一句话依据(引用方法名/上下文)",',
+             '"call_chain":"值的来源与消费方法简述, 无则空串",',
+             '"flows":["network|storage|log|sdk|test", ...]}',
+             "命中清单:"]
+    for fp, hits in batch_items:
+        for name, value in hits:
+            lines.append("- [{}] {}: {} (文件 {})".format(name, value[:16], name, fp))
+    lines.append("来源代码:")
+    for fp, hits in batch_items:
+        code = extract_regions(fp, [v for _, v in hits], granularity, max_chars)
+        lines.append("=== {} ===".format(fp))
+        lines.append(code)
+    return "\n".join(lines)
+
+
+# 解析模型响应: 容忍 markdown 代码栅栏与前后杂文, 取第一个 JSON 数组
+def parse_verdicts(text):
+    text = text or ""
+    fence = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", text, re.S)
+    if fence:
+        text = fence.group(1)
+    start, end = text.find("["), text.rfind("]")
+    if start < 0 or end <= start:
+        return []
+    import json
+    try:
+        data = json.loads(text[start:end + 1])
+    except ValueError:
+        return []
+    out = []
+    for item in data:
+        if isinstance(item, dict) and "verdict" in item:
+            out.append({"value": str(item.get("value", "")),
+                        "verdict": str(item.get("verdict", "unknown")),
+                        "type": str(item.get("type", "")),
+                        "basis": str(item.get("basis", "")),
+                        "call_chain": str(item.get("call_chain", "")),
+                        "flows": [str(x) for x in item.get("flows", []) if x]})
+    return out
+
+
+# 复核入口: 未启用或无 provider 静默返回空; 分批调用带懒降级; 送检内容不写日志
+def run_verify(result_dict):
+    cfg = getattr(cores.config, "ai_verify", {}) or {}
+    if not cfg.get("enabled") or not (cfg.get("provider") or {}):
+        return []
+    files = collect_targets(result_dict)
+    if not files:
+        return []
+    granularity = cfg.get("granularity", "method")
+    max_chars = int(cfg.get("max_file_tokens", 6000)) * 3
+    batch = max(1, int(cfg.get("batch_size", 5)))
+    items = list(files.items())
+    total_hits = sum(len(v) for v in files.values())
+    cores.logp(cores.i18n.t(
+        "[*] AI verify: {} files / {} hits, granularity={}", len(items), total_hits, granularity))
+    verdicts = []
+    for i in range(0, len(items), batch):
+        name, text = call_with_fallback(build_prompt(items[i:i + batch], granularity, max_chars))
+        if not name:
+            cores.logp(cores.i18n.t("[-] AI verify: all providers failed, skip remaining"))
+            break
+        verdicts.extend(parse_verdicts(text))
+    confirm = sum(1 for v in verdicts if v["verdict"] == "confirm")
+    cores.logp(cores.i18n.t(
+        "[*] AI verify done: {} verdicts ({} confirm)", len(verdicts), confirm))
+    return verdicts
+
+
 # 连通性探测(引导向导用): 最小请求, 通了返回 True
 def healthy(provider_cfg):
     try:
