@@ -25,6 +25,8 @@ SNIFFER_HEADER = ("Number", "IP/URL", "Domain", "Status", "IP",
 _URL_PATTERN = re.compile(
     r'(?i)^(?:jdbc(?::[a-z0-9]+)*:(?:@)?//|(?:https?|ftps?|sftp|wss?|ssl|tcp|udp|ssh|telnet|smtp|imap|pop3?|ldaps?|rtmps?|rtsps?|mysql|mariadb|mssql|mongodb|redis|memcached|amqp|mqtt|file|gopher)://)')
 _IP4_PATTERN = re.compile(r'^(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$')
+# PII 命中值的降权标注后缀(入桶前剥除, 同值带标注/不带标注归并)
+_ANNOTATION_RE = re.compile(r"\s*\(疑似测试向量[^)]*\)\s*$")
 _SENSITIVE_PATTERN = re.compile(r'^\[([A-Za-z0-9_]+)\]-->:?\s*(.+)$', re.S)
 _IPV6_HINT = re.compile(r'^[0-9a-fA-F:]+$')
 
@@ -132,6 +134,8 @@ def classify_results(result_dict, ak_names, pii_names):
             sensitive = _SENSITIVE_PATTERN.match(value)
             if sensitive:
                 name, raw = sensitive.group(1), sensitive.group(2).strip()
+                # 剥掉降权标注后再入桶: 同值"带标注/不带标注"两条目归并为一个键
+                raw = _ANNOTATION_RE.sub("", raw).strip()
                 if name in ak_names:
                     put(data["credentials"], "%s|%s" % (name, raw), file_path)
                 elif name in pii_names:
@@ -204,7 +208,10 @@ def _redact_key(key, mode):
     return name + sep + cores.redact(value)
 
 
-def build_report_meta(sample, task_type, tool_version="v1.0.10", agent=False):
+def build_report_meta(sample, task_type, tool_version=None, agent=False):
+    if tool_version is None:
+        from libs.core import updater
+        tool_version = "v" + updater.APP_VERSION
     return {
         "sample": sample,
         "task_type": task_type,
