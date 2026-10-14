@@ -125,3 +125,5 @@ result_*.xlsx
 .zcodeignore
 demo/
 AGENTS.md
+# 本地自测套件(不随仓库分发, 13-4)
+tests/
