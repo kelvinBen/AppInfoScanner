@@ -15,7 +15,7 @@
 import copy
 
 # 配置格式版本: 跨版本升级时自动迁移用户 config.toml
-CONFIG_VERSION = "1.0.12"
+CONFIG_VERSION = "1.0.13"
 
 DEFAULTS = {
     # 配置格式版本(工具自动管理)

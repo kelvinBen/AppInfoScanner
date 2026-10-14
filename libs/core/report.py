@@ -157,6 +157,47 @@ def classify_results(result_dict, ak_names, pii_names):
     return data
 
 
+def cores_mod():
+    import libs.core as _cores
+    return _cores
+
+
+# full 模式: 报告 JSON 全量脱敏(值段落与命中行)
+def _deep_redact(node):
+    cores = cores_mod()
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            if isinstance(v, str):
+                if "]-->:" in v:
+                    head, _, val = v.partition("]-->:")
+                    v = head + "]-->: " + cores.redact(val.strip())
+                if "|" in k:
+                    k = _redact_key(k, "full")
+                out[k] = v
+            else:
+                out[k] = _deep_redact(v)
+        return out
+    if isinstance(node, list):
+        return [_deep_redact(x) for x in node]
+    if isinstance(node, str) and "]-->:" in node:
+        head, _, val = node.partition("]-->:")
+        return head + "]-->: " + cores.redact(val.strip())
+    return node
+
+
+# 键 "Name|value" 的值段脱敏(redact 模式来自 extra)
+def _redact_key(key, mode):
+    if mode == "none":
+        return key
+    name, sep, value = key.partition("|")
+    if not sep:
+        import libs.core as cores
+        return cores.redact(key) if mode else key
+    import libs.core as cores
+    return name + sep + cores.redact(value)
+
+
 def build_report_meta(sample, task_type, tool_version="v1.0.10", agent=False):
     return {
         "sample": sample,
@@ -172,8 +213,8 @@ def _split_sensitive(key):
     return name, value
 
 
-# 结构化JSON报告
-def write_json_report(path, meta, data, extra):
+# 结构化 payload 组装(json-only 模式复用于 stdout 输出)
+def build_report_payload(meta, data, extra):
     payload = {"meta": meta}
     for section in ("urls", "hosts", "ip_private", "ip_public", "ip_v6", "loopback"):
         payload[section] = [
@@ -186,6 +227,14 @@ def write_json_report(path, meta, data, extra):
     payload["other"] = [
         {"value": key, "files": files} for key, files in data["other"].items()]
     payload.update(extra)  # components/permissions/shell/sniffer 等
+    if getattr(cores_mod(), "redact_mode", "none") == "full":
+        payload = _deep_redact(payload)
+    return payload
+
+
+# 结构化JSON报告
+def write_json_report(path, meta, data, extra):
+    payload = build_report_payload(meta, data, extra)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
@@ -268,15 +317,17 @@ def write_txt_report(path, meta, data, extra):
             lines.append("  #   adb reverse tcp:{0} tcp:{0}   (设备 127.0.0.1:{0} -> 宿主机代理)".format(port))
         lines.append("")
 
+    import libs.core as _cores
+    _rm = getattr(_cores, "redact_mode", "none")
     lines.append("[敏感凭据 AK/SK] (%d)" % len(data["credentials"]))
     for key, files in data["credentials"].items():
         name, value = _split_sensitive(key)
-        lines.append("  [%s] %s" % (name, value))
+        lines.append("  [%s] %s" % (name, _cores.redact(value) if _rm != "none" else value))
     lines.append("")
     lines.append("[个人/企业敏感信息 PII] (%d)" % len(data["pii"]))
     for key, files in data["pii"].items():
         name, value = _split_sensitive(key)
-        lines.append("  [%s] %s" % (name, value))
+        lines.append("  [%s] %s" % (name, _cores.redact(value) if _rm != "none" else value))
     lines.append("")
 
     if extra.get("sniffer"):
@@ -285,11 +336,17 @@ def write_txt_report(path, meta, data, extra):
             lines.append("  " + " | ".join(str(x) for x in row))
         lines.append("")
 
+    def _redact_line(line):
+        if _rm == "none" or "]-->:" not in line:
+            return line
+        head, _, value = line.partition("]-->:")
+        return head + "]-->: " + _cores.redact(value.strip())
+
     lines.append("[明细] (按文件)")
     for file_path, results in sorted(extra.get("details", {}).items()):
         lines.append("  %s:" % file_path)
         for value in sorted(results):
-            lines.append("      %s" % value)
+            lines.append("      %s" % _redact_line(value))
     lines.append("")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
@@ -355,14 +412,27 @@ def write_xlsx_report(path, meta, data, extra):
                 v.get("basis", ""), v.get("call_chain", ""), ", ".join(v.get("flows", [])))
                for v in verdicts])
     details = extra.get("details") or {}
+    import libs.core as _cores
+    _rm2 = getattr(_cores, "redact_mode", "none")
+
+    def _xl_line(v):
+        if _rm2 == "none" or "]-->:" not in str(v):
+            return v
+        head, _, value = str(v).partition("]-->:")
+        return head + "]-->: " + _cores.redact(value.strip())
+
     sheet("Details", ("File", "Result"),
-          [(fp, v) for fp, values in sorted(details.items()) for v in sorted(values)])
+          [(fp, _xl_line(v)) for fp, values in sorted(details.items()) for v in sorted(values)])
     workbook.save(path)
 
 
 def _sensitive_sheet(workbook, name, flat):
+    import libs.core as _cores
+    _rm = getattr(_cores, "redact_mode", "none")
     ws = workbook.create_sheet(name)
     ws.append(("Rule", "Value", "Files"))
     for key, files in flat.items():
         rule, value = _split_sensitive(key)
+        if _rm != "none":
+            value = _cores.redact(value)
         ws.append((rule, value, len(files)))

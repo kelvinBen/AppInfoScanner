@@ -16,7 +16,7 @@ import urllib.request
 import urllib.error
 
 # 当前程序版本(与 update.md / README 徽章保持同步)
-APP_VERSION = "1.0.12"
+APP_VERSION = "1.0.13"
 
 # Release 信息源
 GITHUB_API = "https://api.github.com/repos/kelvinBen/AppInfoScanner/releases/latest"
