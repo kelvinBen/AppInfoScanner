@@ -23,6 +23,8 @@ _CATALOG = {
     "[*] Deploy rules to workspace: {}": {"zh": "[*] 部署规则库到工作区: {}", "en": "[*] Deploy rules to workspace: {}"},
     "[*] Split rules {} keys -> rules.toml (config backup: {})": {"zh": "[*] 已拆分 {} 个规则键 -> rules.toml (config 备份: {})", "en": "[*] Split rules {} keys -> rules.toml (config backup: {})"},
     "[*] Pruned {} old out/ run dirs (kept {} recent / {}d)": {"zh": "[*] 已清理 {} 个过期 out/ 运行子目录(保留最近 {} 个 / {} 天内)", "en": "[*] Pruned {} old out/ run dirs (kept {} recent / {}d)"},
+    "[*] Agent resume: skipped {} cached files, replayed {} hits": {"zh": "[*] Agent 断点续扫: 跳过 {} 个缓存文件, 回放 {} 条命中", "en": "[*] Agent resume: skipped {} cached files, replayed {} hits"},
+    "[!] Agent resume: old cache has no hit records, this report EXCLUDES those files; delete agent-cache.json for a full rescan": {"zh": "[!] Agent 断点续扫: 旧缓存无命中记录, 本报告不含这些文件的命中; 删除 agent-cache.json 可全量重扫", "en": "[!] Agent resume: old cache has no hit records, this report EXCLUDES those files; delete agent-cache.json for a full rescan"},
     "[*] Agent resume: skipped {} cached files": {"zh": "[*] Agent 断点续扫: 跳过 {} 个已缓存文件", "en": "[*] Agent resume: skipped {} cached files"},
     "[*] AI asset review: {} media reviewed": {"zh": "[*] AI 资产理解: 已复核 {} 个媒体文件", "en": "[*] AI asset review: {} media reviewed"},
     "[*] ========= AI verdict summary: {} total / {} confirm ===============": {"zh": "[*] ========= AI 复核摘要: 共 {} 条 / 确认 {} 条 ===============", "en": "[*] ========= AI verdict summary: {} total / {} confirm ==============="},

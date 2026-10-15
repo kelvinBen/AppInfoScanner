@@ -62,6 +62,9 @@ def android(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool
         os.environ["APPINFO_LANG"] = "en"
         output = output or "agent-out"
     cores.redact_mode = redact or ("hash" if agent else "none")
+    # json-only 的 stdout 切流必须在 Bootstrapper 之前: 启动期日志([*] Output root...
+    # 等 6 行)已破坏过"stdout 纯 JSON"契约, MCP 靠取最后一行 { 兜底才没炸
+    cores.json_only = (output_format == "json-only")
     deadline = timeout if timeout else (300 if agent else None)
 
     def _run():
@@ -118,6 +121,9 @@ def ios(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, th
         os.environ["APPINFO_LANG"] = "en"
         output = output or "agent-out"
     cores.redact_mode = redact or ("hash" if agent else "none")
+    # json-only 的 stdout 切流必须在 Bootstrapper 之前: 启动期日志([*] Output root...
+    # 等 6 行)已破坏过"stdout 纯 JSON"契约, MCP 靠取最后一行 { 兜底才没炸
+    cores.json_only = (output_format == "json-only")
     deadline = timeout if timeout else (300 if agent else None)
 
     def _run():
@@ -173,6 +179,9 @@ def web(inputs: str, rules: str, sniffer: bool, no_resource: bool, all: bool, th
         os.environ["APPINFO_LANG"] = "en"
         output = output or "agent-out"
     cores.redact_mode = redact or ("hash" if agent else "none")
+    # json-only 的 stdout 切流必须在 Bootstrapper 之前: 启动期日志([*] Output root...
+    # 等 6 行)已破坏过"stdout 纯 JSON"契约, MCP 靠取最后一行 { 兜底才没炸
+    cores.json_only = (output_format == "json-only")
     deadline = timeout if timeout else (300 if agent else None)
 
     def _run():
@@ -232,11 +241,23 @@ def _run_with_timeout(fn, seconds):
     if not seconds:
         fn()
         return
-    worker = threading.Thread(target=fn, daemon=True)
+    # 线程内异常(ShellDetected/TaskError/EnvMissing)必须回传主线程,
+    # 否则语义化退出码被吞、进程 exit 0(2026-10-15 agent 验证实测)
+    outcome = {}
+
+    def _wrapped():
+        try:
+            fn()
+        except BaseException as e:
+            outcome["error"] = e
+
+    worker = threading.Thread(target=_wrapped, daemon=True)
     worker.start()
     worker.join(seconds)
     if worker.is_alive():
         raise TimeoutError("task exceeded {}s total timeout".format(seconds))
+    if "error" in outcome:
+        raise outcome["error"]
 
 
 # MCP Server(stdio): 将扫描能力暴露为 Agent 工具
