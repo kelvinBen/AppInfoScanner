@@ -38,8 +38,10 @@ _HOST_VALID_RE = re.compile(
 def host_valid(host):
     # 字符集合法的单标签/点分域名或 IPv4 字面量才入清单;
     # 模板碎片(or wss/%1$s/自然语句)含空格与特殊字符, 全部拦截
+    if _IP4_PATTERN.match(host):
+        return True   # IP 判定必须先行: 纯数字标签也被域名正则命中
     if not _HOST_VALID_RE.match(host):
-        return bool(_IP4_PATTERN.match(host))
+        return False
     # 点分形态要求末标签为纯字母 TLD(拦 a.b.c123 类数字尾缀), 单标签直接放行
     if "." in host:
         tld = host.rsplit(".", 1)[-1]

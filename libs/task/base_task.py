@@ -17,6 +17,28 @@ from libs.task.android_task import AndroidTask
 from libs.task.download_task import DownloadTask
 
 
+# stdout 是 Agent 管道出口: hash/full 模式下敏感值必须脱敏, 完整值按设计
+# 仅保留在 report.json 文件(_deep_redact 只认旧 ]-->: 内联格式, 对新 payload
+# 的 {rule:[{value}]} 分组结构与 other/ai_verdict 列表形态在此显式处理)
+def redact_payload_for_stdout(payload):
+    if getattr(cores, "redact_mode", "none") == "none":
+        return payload
+    for section in ("credentials", "pii"):
+        for rule, items in (payload.get(section) or {}).items():
+            for item in items if isinstance(items, list) else []:
+                if isinstance(item, dict) and item.get("value"):
+                    item["value"] = cores.redact(item["value"])
+    # other 桶是 [{value, files}] 列表形态(Suspected_SecretKey 密钥材料同泄漏路径)
+    for item in payload.get("other") or []:
+        if isinstance(item, dict) and item.get("value") and "]-->:" in item["value"]:
+            head, _, val = item["value"].partition("]-->:")
+            item["value"] = head + "]-->: " + cores.redact(val.strip())
+    for verdict in payload.get("ai_verdict") or []:
+        if isinstance(verdict, dict) and verdict.get("value"):
+            verdict["value"] = cores.redact(verdict["value"])
+    return payload
+
+
 class BaseTask(object):
     # 统一初始化入口
 
@@ -79,20 +101,35 @@ class BaseTask(object):
                 done = json.load(f).get("files", {})
         except (OSError, ValueError):
             pass
-        keep, skipped = [], 0
+        keep, skipped, replayed = [], 0, 0
+        stale_cache = False
         while not scan_queue.empty():
             item = scan_queue.get()
             digest = self.__file_md5__(item)
-            if digest and digest in done:
+            cached = done.get(digest) if digest else None
+            if cached is not None:
                 skipped += 1
+                hits = cached.get("hits") if isinstance(cached, dict) else None
+                if hits:
+                    # 命中回放: 缓存的命中回填 result_dict, 续扫报告不空壳
+                    self.result_dict.setdefault(cached.get("path", item), set()).update(hits)
+                    replayed += len(hits)
+                else:
+                    stale_cache = True
                 continue
             keep.append(item)
         for item in keep:
             scan_queue.put(item)
         self._scanned_md5 = [d for d in (self.__file_md5__(x) for x in keep) if d]
+        self._scanned_paths = list(keep)
         if skipped:
             cores.logp(cores.i18n.t(
-                "[*] Agent resume: skipped {} cached files", skipped))
+                "[*] Agent resume: skipped {} cached files, replayed {} hits",
+                skipped, replayed))
+        if stale_cache:
+            cores.logp(cores.i18n.t(
+                "[!] Agent resume: old cache has no hit records, this report EXCLUDES "
+                "those files; delete agent-cache.json for a full rescan"))
 
     def __record_agent_cache__(self):
         if not self.agent_mode or not getattr(self, "_scanned_md5", None):
@@ -106,8 +143,14 @@ class BaseTask(object):
                 done = json.load(f).get("files", {})
         except (OSError, ValueError):
             pass
-        for digest in self._scanned_md5:
-            done[digest] = {"ts": time.strftime("%Y-%m-%d %H:%M:%S")}
+        scanned = getattr(self, "_scanned_paths", None) or []
+        md5s = getattr(self, "_scanned_md5", None) or []
+        for digest, path in zip(md5s, [p for p in scanned] * 1 if len(scanned) == len(md5s) else [None] * len(md5s)):
+            done[digest] = {
+                "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "path": path,
+                "hits": sorted(self.result_dict.get(path, set())) if path else [],
+            }
         try:
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
             # 原子写(tmp+rename): 并行实例同时记录时不损坏, 最多丢一次合并
@@ -282,8 +325,9 @@ class BaseTask(object):
                 cores.logp(cores.i18n.t("[-] Write {} report failed: {}", name, e))
         if self.output_format == "json-only":
             import json as _json
+            payload = report.build_report_payload(meta, data, extra)
             _sys.stdout.write(_json.dumps(
-                report.build_report_payload(meta, data, extra), ensure_ascii=False) + "\n")
+                redact_payload_for_stdout(payload), ensure_ascii=False) + "\n")
             _sys.stdout.flush()
 
         cores.logp("[*] ========= Summary: ===============")
